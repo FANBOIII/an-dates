@@ -253,7 +253,7 @@ function viewHome() {
   const sorted = [...S.dates].filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
   const up = sorted.filter(d => d.date >= t), past = sorted.filter(d => d.date < t).reverse();
   const next = up[0];
-  let h = "";
+  let h = pushPanel();
   if (next) {
     const first = (next.stops || [])[0];
     h += `<a class="next" href="#d-${esc(next.id)}"><div class="eyebrow">Nächstes Date</div><div class="big">${esc(countdown(next))}</div>
@@ -458,18 +458,25 @@ document.addEventListener("click", async e => {
   const act = b.dataset.act, d = S.dates.find(x => x.id === S.route.id);
   if (act === "logout") { await sb.auth.signOut(); S.phase = "login"; S.loaded = false; location.hash = ""; render(true); }
   else if (act === "retry") boot();
+  else if (act === "enablepush") enablePush(b);
   else if (act === "backlogin") { S.phase = "login"; render(true); }
   else if (act === "setup") { S.setup = true; renderSetup(); }
   else if (act === "closesetup") { S.setup = false; closeLayer(); }
-  else if (act === "rsvp" && d) { b.disabled = true; await saveDateData(d, { rsvp: { status: b.dataset.v, by: S.me, at: Date.now(), proposal: "" } }); }
+  else if (act === "rsvp" && d) {
+    b.disabled = true;
+    if (await saveDateData(d, { rsvp: { status: b.dataset.v, by: S.me, at: Date.now(), proposal: "" } }))
+      notify(myName() + (b.dataset.v === "yes" ? " hat zugesagt" : " hat abgesagt"), fmtLong(d.date) + (d.title ? " · " + d.title : ""), "#d-" + d.id);
+  }
   else if (act === "propose" && d) {
     const inp = document.getElementById("prop-" + d.id), v = inp.value.trim(); if (!v) { inp.focus(); return; }
-    if (await saveDateData(d, { rsvp: { status: "propose", by: S.me, at: Date.now(), proposal: v } })) inp.value = "";
+    if (await saveDateData(d, { rsvp: { status: "propose", by: S.me, at: Date.now(), proposal: v } })) {
+      inp.value = ""; notify(myName() + " schlägt etwas anderes vor", v, "#d-" + d.id);
+    }
   }
   else if (act === "comment" && d) {
     const inp = document.getElementById("cmt-" + d.id), v = inp.value.trim(); if (!v) { inp.focus(); return; }
     b.disabled = true;
-    if (await run(T("comments").insert({ id: uid("c"), date_id: d.id, body: v }))) inp.value = "";
+    if (await run(T("comments").insert({ id: uid("c"), date_id: d.id, body: v }))) { inp.value = ""; notify(myName(), v, "#d-" + d.id); }
     b.disabled = false;
   }
   else if (act === "savememo" && d) {
@@ -510,13 +517,15 @@ document.addEventListener("change", async e => {
   if (el.id === "upload" && el.files && el.files.length) {
     const files = [...el.files], dateId = el.dataset.date; el.value = "";
     toast(files.length === 1 ? "Foto wird hochgeladen …" : files.length + " Fotos werden hochgeladen …");
+    let ok = 0;
     for (const f of files) {
       const path = dateId + "/" + uid("p") + ".jpg";
       const blob = await shrink(f);
       const { error } = await sb.storage.from("photos").upload(path, blob, { contentType: blob.type || "image/jpeg" });
       if (error) { console.error(error); toast("Ein Foto konnte nicht hochgeladen werden: " + error.message); continue; }
-      await run(T("photos").insert({ id: uid("p"), date_id: dateId, path }));
+      if (await run(T("photos").insert({ id: uid("p"), date_id: dateId, path }))) ok++;
     }
+    if (ok) notify(myName() + (ok === 1 ? " hat ein Foto hochgeladen" : " hat " + ok + " Fotos hochgeladen"), "", "#d-" + dateId);
   }
 });
 
@@ -559,14 +568,63 @@ document.addEventListener("submit", async e => {
     const data = { title: (d.title || "").trim(), date: d.date, city, lat, lng, forName: (d.forName || "").trim(), fromName: (d.fromName || "").trim(),
       stops: d.stops.map(s => ({ id: s.id || uid("s"), time: s.time, cat: s.cat, name: s.name.trim(), note: s.note.trim(), place: s.place.trim(), walk: (s.walk || "").trim() })),
       rsvp: (orig && orig.rsvp) || { status: "open", by: "", at: 0, proposal: "" }, memo: (orig && orig.memo) || "" };
-    if (await run(T("dates").upsert({ id, data }))) location.hash = "d-" + id;
+    if (await run(T("dates").upsert({ id, data }))) {
+      const what = (data.title ? data.title + " · " : "") + fmtLong(data.date);
+      if (orig) notify(myName() + " hat ein Date geändert", what, "#d-" + id);
+      else notify(myName() + " hat dich zu einem Date eingeladen", what, "#d-" + id);
+      location.hash = "d-" + id;
+    }
     else btn.disabled = false;
   }
   if (f.id === "ideaform") {
     const t = $("#idea-text"), v = t.value.trim(); if (!v) { t.focus(); return; }
-    if (await run(T("ideas").insert({ id: uid("i"), body: v, tag: $("#idea-tag").value }))) { t.value = ""; t.focus(); }
+    if (await run(T("ideas").insert({ id: uid("i"), body: v, tag: $("#idea-tag").value }))) { t.value = ""; t.focus(); notify("Neue Idee von " + myName(), v, "#ideen"); }
   }
 });
+
+/* ---------- push ---------- */
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+const standalone = window.navigator.standalone === true || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && !!CFG.VAPID_PUBLIC_KEY;
+let swReg = null;
+function b64ToU8(b) { const p = "=".repeat((4 - b.length % 4) % 4); const r = atob((b + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(r, c => c.charCodeAt(0)); }
+async function initPush() {
+  if (!pushSupported) { S.push = isIOS && !standalone ? "needhome" : "unsupported"; return; }
+  try {
+    swReg = await navigator.serviceWorker.register("sw.js");
+    if (Notification.permission === "denied") { S.push = "denied"; return; }
+    const sub = await swReg.pushManager.getSubscription();
+    if (sub && Notification.permission === "granted") {
+      S.push = "on";
+      await sb.from("push_subscriptions").upsert({ endpoint: sub.endpoint, sub: sub.toJSON() });
+    } else S.push = "off";
+  } catch (e) { console.error(e); S.push = "unsupported"; }
+}
+async function enablePush(btn) {
+  btn.disabled = true;
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") { S.push = perm === "denied" ? "denied" : "off"; render(); return; }
+    const reg = swReg || await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(CFG.VAPID_PUBLIC_KEY) });
+    const { error } = await sb.from("push_subscriptions").upsert({ endpoint: sub.endpoint, sub: sub.toJSON() });
+    if (error) throw error;
+    S.push = "on"; toast("Mitteilungen sind an.");
+  } catch (e) { console.error(e); toast("Mitteilungen konnten nicht aktiviert werden: " + (e.message || e)); }
+  btn.disabled = false; render();
+}
+function pushPanel() {
+  if (S.push === "off") return `<div class="panel" style="margin:0 0 16px"><h2 style="font-size:19px">Mitteilungen</h2><p class="muted" style="margin:4px 0 12px">Bekomm Bescheid, wenn ein neues Date, eine Zusage oder eine Nachricht kommt.</p><button class="btn primary" type="button" data-act="enablepush">Mitteilungen aktivieren</button></div>`;
+  if (S.push === "denied") return `<div class="banner">Mitteilungen sind blockiert. Erlauben kannst du sie in den iPhone-Einstellungen unter Mitteilungen → A+N.</div>`;
+  if (S.push === "needhome") return `<div class="banner">Für Mitteilungen: In Safari auf Teilen → „Zum Home-Bildschirm“ tippen und die App über das A+N-Icon öffnen.</div>`;
+  return "";
+}
+function myName() { return (S.people[S.me] && S.people[S.me].name) || "Jemand"; }
+function notify(title, body, url) {
+  if (!sb) return;
+  sb.functions.invoke("notify", { body: { title, body, url } }).catch(e => console.error(e));
+}
 
 /* ---------- boot ---------- */
 let subscribed = false;
@@ -579,6 +637,7 @@ async function afterLogin(session) {
   render(true);
   if (!subscribed) { subscribed = true; subscribe(); }
   await loadAll();
+  await initPush(); render();
 }
 async function boot() {
   S.phase = "boot"; render(true);
