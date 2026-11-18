@@ -1,5 +1,6 @@
 
 "use strict";
+const APP_VERSION = 4;
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -45,6 +46,7 @@ const I = {
   music:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>',
   home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>',
   heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></svg>',
+  photo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>',
   bulb:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>',
   plus:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   nav:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L3 10.5l7.5 3 3 7.5z"/></svg>',
@@ -69,6 +71,63 @@ const WX = { sonnig:{label:"Sonnig",icon:"sun"}, wolkig:{label:"Bewölkt",icon:"
 const RSVP = { open:"Noch offen", yes:"Zugesagt", no:"Abgesagt", propose:"Neue Uhrzeit vorgeschlagen" };
 const IDEA_TAGS = ["Essen","Aktivität","Ausflug","Zuhause","Reise","Sonstiges"];
 const BOW = '<svg class="bow" viewBox="0 0 120 100" aria-hidden="true"><defs><pattern id="gh" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#fff"/><rect width="4" height="8" fill="#D9474F" opacity=".55"/><rect width="8" height="4" fill="#D9474F" opacity=".55"/></pattern></defs><g stroke="#B5323A" stroke-width="1.5"><path d="M60 42 C40 10 8 14 14 40 C18 58 44 54 60 46Z" fill="url(#gh)"/><path d="M60 42 C80 10 112 14 106 40 C102 58 76 54 60 46Z" fill="url(#gh)"/><path d="M56 48 L36 94 L48 88 L54 98 L62 50Z" fill="url(#gh)"/><path d="M64 48 L80 92 L68 87 L64 97 L58 50Z" fill="url(#gh)"/><ellipse cx="60" cy="45" rx="9" ry="8" fill="url(#gh)"/></g></svg>';
+
+/* Seasonal decoration top right of an invitation, chosen by the date's month */
+const TOGETHER_SINCE = "2025-12-30";
+function starPts(cx, cy, R, r, n) { const p = []; for (let i = 0; i < n * 2; i++) { const a = -Math.PI / 2 + i * Math.PI / n, k = i % 2 ? r : R; p.push((cx + k * Math.cos(a)).toFixed(1) + "," + (cy + k * Math.sin(a)).toFixed(1)); } return p.join(" "); }
+function spokes(cx, cy, n, r1, r2) { let o = ""; for (let i = 0; i < n; i++) { const a = i * 2 * Math.PI / n; o += `<line x1="${(cx + r1 * Math.cos(a)).toFixed(1)}" y1="${(cy + r1 * Math.sin(a)).toFixed(1)}" x2="${(cx + r2 * Math.cos(a)).toFixed(1)}" y2="${(cy + r2 * Math.sin(a)).toFixed(1)}"/>`; } return o; }
+const DECOR = {
+  snowman: () => `<circle cx="60" cy="72" r="23" fill="#fff" stroke="#A9BCD0" stroke-width="2"/><circle cx="60" cy="38" r="15" fill="#fff" stroke="#A9BCD0" stroke-width="2"/><rect x="49" y="12" width="22" height="13" rx="2" fill="#2B2B2B"/><rect x="43" y="23" width="34" height="4" rx="2" fill="#2B2B2B"/><rect x="49" y="19" width="22" height="3" fill="#C8323B"/><circle cx="55" cy="36" r="2" fill="#2B2B2B"/><circle cx="65" cy="36" r="2" fill="#2B2B2B"/><path d="M60 40 L75 43 L60 44Z" fill="#E8792B"/><path d="M45 50 Q60 57 75 50 L75 55 Q60 62 45 55Z" fill="#C8323B"/><path d="M68 55 l3 15 l6 -2 l-3 -14z" fill="#C8323B"/><circle cx="60" cy="66" r="2.2" fill="#2B2B2B"/><circle cx="60" cy="76" r="2.2" fill="#2B2B2B"/><path d="M38 64 L22 54 M83 64 L98 52" stroke="#7A5232" stroke-width="3" stroke-linecap="round"/>`,
+  candycane: () => `<path d="M72 94 L72 36 A16 16 0 0 0 40 36" fill="none" stroke="#E7C9CF" stroke-width="17" stroke-linecap="round"/><path d="M72 94 L72 36 A16 16 0 0 0 40 36" fill="none" stroke="#fff" stroke-width="14" stroke-linecap="round"/><path d="M72 94 L72 36 A16 16 0 0 0 40 36" fill="none" stroke="#C8323B" stroke-width="14" stroke-dasharray="7 7"/><path d="M64 60 C52 52 46 62 56 64 Z M64 60 C76 52 82 62 72 64 Z" fill="#3E8E4E"/>`,
+  angel: () => `<ellipse cx="60" cy="14" rx="11" ry="4" fill="none" stroke="#E2B33C" stroke-width="3"/><path d="M57 42 C40 24 20 28 18 46 C32 46 44 50 57 54Z" fill="#fff" stroke="#C9D3E0" stroke-width="2"/><path d="M63 42 C80 24 100 28 102 46 C88 46 76 50 63 54Z" fill="#fff" stroke="#C9D3E0" stroke-width="2"/><path d="M60 38 L84 94 L36 94Z" fill="#F4D77A" stroke="#E2B33C" stroke-width="2" stroke-linejoin="round"/><circle cx="60" cy="29" r="10" fill="#F6D9C4" stroke="#E2B33C" stroke-width="1.5"/>`,
+  star: () => `<polygon points="${starPts(60, 52, 42, 18, 5)}" fill="#F2C14E" stroke="#D49A1E" stroke-width="2.5" stroke-linejoin="round"/><circle cx="48" cy="46" r="3" fill="#fff" opacity=".7"/>`,
+  snowflake: () => `<g stroke="#8DB3D9" stroke-width="4" stroke-linecap="round">${spokes(60, 50, 6, 0, 40)}${spokes(60, 50, 6, 22, 22).replace(/<line /g, "<line ")}</g><g stroke="#8DB3D9" stroke-width="3" stroke-linecap="round">${[0,1,2,3,4,5].map(i => { const a = i * Math.PI / 3, x = 60 + 24 * Math.cos(a), y = 50 + 24 * Math.sin(a); return [a + 0.9, a - 0.9].map(b => `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x + 10 * Math.cos(b)).toFixed(1)}" y2="${(y + 10 * Math.sin(b)).toFixed(1)}"/>`).join(""); }).join("")}</g>`,
+  heart: () => `<defs><pattern id="gh2" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#fff"/><rect width="4" height="8" fill="#D9474F" opacity=".55"/><rect width="8" height="4" fill="#D9474F" opacity=".55"/></pattern></defs><path d="M60 90 C20 62 16 32 38 22 C50 17 58 25 60 34 C62 25 70 17 82 22 C104 32 100 62 60 90Z" fill="url(#gh2)" stroke="#B5323A" stroke-width="2"/>`,
+  tulip: () => `<path d="M60 96 L60 50" stroke="#3E8E4E" stroke-width="4"/><path d="M60 82 C44 78 38 64 40 56 C52 60 58 70 60 82Z" fill="#5BAA5F"/><path d="M60 74 C76 70 82 58 80 50 C68 54 62 62 60 74Z" fill="#5BAA5F"/><path d="M42 16 L50 28 L60 12 L70 28 L78 16 C82 36 76 54 60 54 C44 54 38 36 42 16Z" fill="#E2557A" stroke="#B83558" stroke-width="2" stroke-linejoin="round"/>`,
+  daisy: () => `<path d="M60 96 L60 60" stroke="#3E8E4E" stroke-width="4"/>${[0,1,2,3,4,5,6,7,8,9].map(i => `<ellipse cx="60" cy="26" rx="7" ry="16" fill="#fff" stroke="#E3D6DA" stroke-width="1.5" transform="rotate(${i * 36} 60 42)"/>`).join("")}<circle cx="60" cy="42" r="10" fill="#F2C14E" stroke="#D49A1E" stroke-width="2"/>`,
+  sun: () => `<g stroke="#F2A93B" stroke-width="5" stroke-linecap="round">${spokes(60, 50, 10, 28, 42)}</g><circle cx="60" cy="50" r="21" fill="#F7C548" stroke="#E7A42B" stroke-width="2"/>`,
+  icecream: () => `<path d="M44 48 L76 48 L60 96Z" fill="#D9A35B" stroke="#B57E3A" stroke-width="2" stroke-linejoin="round"/><path d="M50 58 L70 58 M53 68 L67 68 M56 78 L64 78" stroke="#B57E3A" stroke-width="1.5"/><circle cx="50" cy="42" r="13" fill="#F3A6C0"/><circle cx="70" cy="42" r="13" fill="#F7E3B5"/><circle cx="60" cy="28" r="13" fill="#A8E0C8"/><circle cx="62" cy="13" r="5" fill="#D9364A"/>`,
+  watermelon: () => `<g transform="rotate(-12 60 50)"><path d="M16 40 A44 44 0 0 0 104 40Z" fill="#E8505B"/><path d="M16 40 A44 44 0 0 0 104 40" fill="none" stroke="#3E8E4E" stroke-width="8"/><path d="M22 41 A38 38 0 0 0 98 41" fill="none" stroke="#CDE8B5" stroke-width="3"/>${[[42,52],[60,58],[78,52],[52,64],[68,64]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="2.2" ry="3.4" fill="#2B2B2B"/>`).join("")}<path d="M16 40 L104 40" stroke="#E8505B" stroke-width="2"/></g>`,
+  leaf: () => `<path d="M60 8 C90 28 96 66 60 90 C24 66 30 28 60 8Z" fill="#D9772B" stroke="#B35A1C" stroke-width="2"/><path d="M60 16 L60 98 M60 40 L76 30 M60 40 L44 30 M60 58 L80 46 M60 58 L40 46 M60 74 L76 64 M60 74 L44 64" stroke="#B35A1C" stroke-width="2" stroke-linecap="round"/>`,
+  pumpkin: () => `<path d="M60 30 C58 22 62 16 66 14" stroke="#5E7A2E" stroke-width="5" stroke-linecap="round" fill="none"/><path d="M66 22 C76 14 88 18 86 26 C78 28 72 26 66 22Z" fill="#5BAA5F"/><ellipse cx="42" cy="62" rx="20" ry="26" fill="#E8842F" stroke="#C2631F" stroke-width="2"/><ellipse cx="78" cy="62" rx="20" ry="26" fill="#E8842F" stroke="#C2631F" stroke-width="2"/><ellipse cx="60" cy="62" rx="18" ry="28" fill="#F0953C" stroke="#C2631F" stroke-width="2"/>`,
+  acorn: () => `<path d="M60 22 L62 12" stroke="#6B4421" stroke-width="4" stroke-linecap="round"/><path d="M40 46 C40 76 60 92 60 92 C60 92 80 76 80 46Z" fill="#C88A4A" stroke="#9C6631" stroke-width="2"/><path d="M34 48 C34 26 86 26 86 48Z" fill="#8A5A2B" stroke="#6B4421" stroke-width="2"/><path d="M40 40 L80 40 M44 33 L76 33" stroke="#6B4421" stroke-width="1.5" opacity=".6"/>`
+};
+function decor(ds) {
+  const [, m, d] = (ds || "").split("-").map(Number);
+  let set;
+  if ((m === 12 && d === 30) || (m === 2 && d >= 10 && d <= 16)) set = ["heart"];
+  else if (m === 12) set = ["candycane", "angel", "star", "snowman"];
+  else if (m === 1 || m === 2) set = ["snowman", "snowflake"];
+  else if (m >= 3 && m <= 5) set = ["tulip", "daisy"];
+  else if (m >= 6 && m <= 8) set = ["sun", "icecream", "watermelon"];
+  else if (m >= 9 && m <= 11) set = ["leaf", "pumpkin", "acorn"];
+  else return BOW;
+  const h = [...ds].reduce((a, c) => a + c.charCodeAt(0), 0);
+  return `<svg class="bow" viewBox="0 0 120 100" aria-hidden="true">${DECOR[set[h % set.length]]()}</svg>`;
+}
+function togetherBox() {
+  const start = parseDay(TOGETHER_SINCE), now = parseDay(todayStr());
+  const days = Math.round((now - start) / 864e5);
+  if (days < 0) return "";
+  let y = now.getFullYear() - start.getFullYear(), m = now.getMonth() - start.getMonth(), d = now.getDate() - start.getDate();
+  if (d < 0) { m--; d += new Date(now.getFullYear(), now.getMonth(), 0).getDate(); }
+  if (m < 0) { y--; m += 12; }
+  const parts = [];
+  if (y) parts.push(y + (y === 1 ? " Jahr" : " Jahre"));
+  if (m) parts.push(m + (m === 1 ? " Monat" : " Monate"));
+  if (d || !parts.length) parts.push(d + (d === 1 ? " Tag" : " Tage"));
+  const ann = new Date(now.getFullYear(), start.getMonth(), start.getDate());
+  let note;
+  if (ann.getTime() === now.getTime() && y > 0) note = `Heute ist unser ${y}. Jahrestag!`;
+  else {
+    if (ann <= now) ann.setFullYear(ann.getFullYear() + 1);
+    const left = Math.round((ann - now) / 864e5), n = ann.getFullYear() - start.getFullYear();
+    note = `Noch ${left} ${left === 1 ? "Tag" : "Tage"} bis zu unserem ${n}. Jahrestag`;
+  }
+  const txt = parts.length > 1 ? parts.slice(0, -1).join(", ") + " und " + parts[parts.length - 1] : parts[0];
+  return `<div class="together"><div class="eyebrow">Zusammen seit ${esc(start.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" }))}</div>
+    <div class="big">${days.toLocaleString("de-DE")} ${days === 1 ? "Tag" : "Tage"}</div><div>${esc(txt)}</div><div class="note">${esc(note)}</div></div>`;
+}
 
 /* ---------- weather (Open-Meteo, no key) ---------- */
 function wmo(code) {
@@ -180,6 +239,7 @@ function otherPerson() { return Object.keys(S.people).find(i => i !== S.me) || n
 function readRoute() {
   const h = location.hash.slice(1);
   if (h === "ideen") return { name: "ideas" };
+  if (h === "erinnerungen") return { name: "memories" };
   if (h === "neu") return { name: "edit", id: null };
   if (h.startsWith("bearbeiten-")) return { name: "edit", id: h.slice(11) };
   if (h.startsWith("d-")) return { name: "date", id: h.slice(2) };
@@ -197,7 +257,7 @@ function render(force) {
   const keep = {};
   if (!force) document.querySelectorAll("#app input[id], #app textarea[id]").forEach(el => { if (el.type !== "file" && el.type !== "checkbox") keep[el.id] = el.value; });
   const v = S.route.name;
-  app.innerHTML = header() + (v === "date" ? viewDate() : v === "edit" ? viewEdit() : v === "ideas" ? viewIdeas() : viewHome());
+  app.innerHTML = header() + (v === "date" ? viewDate() : v === "edit" ? viewEdit() : v === "ideas" ? viewIdeas() : v === "memories" ? viewMemories() : viewHome());
   Object.entries(keep).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
   if (aid) { const el = document.getElementById(aid); if (el) { el.focus(); try { if (sel != null) el.setSelectionRange(sel, sel); } catch (e) {} } }
   renderTabs(); renderSetup();
@@ -218,15 +278,18 @@ function viewGate() {
 function header() {
   const meName = S.me && S.people[S.me] ? esc(S.people[S.me].name) : "";
   const warn = S.slow ? '<div class="banner">Die Daten laden gerade nicht. Prüfe deine Internetverbindung. Was du siehst, ist eventuell nicht aktuell.</div>' : "";
-  return warn + `<header class="topbar"><div class="brand"><span class="mono" aria-hidden="true">A<small>+</small>N</span><h1>${S.route.name === "ideas" ? "Ideen" : "Unsere Dates"}</h1></div>
+  return warn + `<header class="topbar"><div class="brand"><span class="mono" aria-hidden="true">A<small>+</small>N</span><h1>${S.route.name === "ideas" ? "Ideen" : S.route.name === "memories" ? "Erinnerungen" : "Unsere Dates"}</h1></div>
     <div class="who">${meName ? `Hallo ${meName}<br>` : ""}<button type="button" data-act="setup">Name</button> · <button type="button" data-act="logout">Abmelden</button></div></header>`;
 }
 function renderTabs() {
   let el = $("#tabs");
   if (!el) { el = document.createElement("div"); el.id = "tabs"; el.className = "tabs"; document.body.appendChild(el); }
   const v = S.route.name;
+  const cur = v === "date" ? S.dates.find(x => x.id === S.route.id) : null;
+  const pastDate = cur && cur.date < todayStr();
   el.innerHTML = `<nav aria-label="Navigation">
-    <a href="#" class="${v === "home" || v === "date" ? "on" : ""}">${I.heart}Dates</a>
+    <a href="#" class="${v === "home" || (v === "date" && !pastDate) ? "on" : ""}">${I.heart}Dates</a>
+    <a href="#erinnerungen" class="${v === "memories" || pastDate ? "on" : ""}">${I.photo}Erinnerungen</a>
     <a href="#neu" class="plus ${v === "edit" ? "on" : ""}"><span class="p">${I.plus}</span>Neues Date</a>
     <a href="#ideen" class="${v === "ideas" ? "on" : ""}">${I.bulb}Ideen</a></nav>`;
 }
@@ -253,7 +316,7 @@ function viewHome() {
   const sorted = [...S.dates].filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
   const up = sorted.filter(d => d.date >= t), past = sorted.filter(d => d.date < t).reverse();
   const next = up[0];
-  let h = pushPanel();
+  let h = pushPanel() + togetherBox();
   if (next) {
     const first = (next.stops || [])[0];
     h += `<a class="next" href="#d-${esc(next.id)}"><div class="eyebrow">Nächstes Date</div><div class="big">${esc(countdown(next))}</div>
@@ -264,13 +327,26 @@ function viewHome() {
     h += `<div class="empty"><p>Gerade ist kein Date geplant.</p><a class="btn primary" href="#neu">${I.plus} Date planen</a></div>`;
   }
   if (up.length > 1) h += `<section class="section"><h2>Geplant</h2><div class="list">${up.slice(1).map(d => itemCard(d)).join("")}</div></section>`;
-  h += `<section class="section"><h2>Erinnerungen</h2>${past.length ? `<div class="list">${past.map(d => {
-      const n = S.photos.filter(p => p.dateId === d.id).length;
-      return itemCard(d, `<span class="chip open">${n} ${n === 1 ? "Foto" : "Fotos"}</span>`);
-    }).join("")}</div>` : '<p class="muted">Vergangene Dates landen hier, mit euren Fotos und Notizen.</p>'}</section>`;
   const openIdeas = S.ideas.filter(i => !i.done).length;
-  h += `<section class="section"><h2>Ideen</h2><p class="muted">${openIdeas ? `${openIdeas} offene ${openIdeas === 1 ? "Idee" : "Ideen"} auf eurer Liste.` : "Noch keine Ideen gesammelt."} <a href="#ideen">Zur Ideenliste</a></p></section>`;
+  h += `<section class="section"><h2>Ideen</h2><p class="muted">${openIdeas ? `${openIdeas} offene ${openIdeas === 1 ? "Idee" : "Ideen"} auf unserer Liste.` : "Noch keine Ideen gesammelt."} <a href="#ideen">Zur Ideenliste</a></p></section>`;
   return h;
+}
+
+/* ---------- memories ---------- */
+function viewMemories() {
+  if (!S.loaded) return '<p class="muted">Lädt …</p>';
+  const t = todayStr();
+  const past = S.dates.filter(d => d.date && d.date < t).sort((a, b) => b.date.localeCompare(a.date));
+  if (!past.length) return '<div class="empty"><p>Hier landen unsere vergangenen Dates mit Fotos und Notizen.</p></div>';
+  return `<div class="list">${past.map(d => {
+    const ph = S.photos.filter(p => p.dateId === d.id).sort((a, b) => (a.at || 0) - (b.at || 0));
+    const dt = parseDay(d.date);
+    const thumbs = ph.filter(p => S.urls[p.path]).slice(0, 4).map(p => `<img src="${esc(S.urls[p.path])}" alt="" loading="lazy">`).join("");
+    return `<a class="mem" href="#d-${esc(d.id)}"><div class="item" style="border:0;padding:0;background:none"><div class="cal"><b>${dt.getDate()}</b><span>${dt.toLocaleDateString("de-DE", { month: "short" }).replace(".", "")}</span></div>
+      <div><div class="t">${esc(d.title || "Date")}</div><div class="s">${esc(dt.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" }))}${d.city ? " · " + esc(d.city) : ""}</div></div>
+      <span class="chip open">${ph.length} ${ph.length === 1 ? "Foto" : "Fotos"}</span></div>
+      ${thumbs ? `<div class="thumbs">${thumbs}</div>` : ""}${d.memo ? `<div class="memo">${esc(d.memo)}</div>` : ""}</a>`;
+  }).join("")}</div>`;
 }
 
 /* ---------- invitation ---------- */
@@ -318,20 +394,20 @@ function viewDate() {
       <div class="row" style="margin-top:10px"><input id="prop-${esc(d.id)}" class="in" style="flex:1;min-width:160px" placeholder="z. B. lieber 19:30" maxlength="80"><button class="btn" data-act="propose" type="button">Vorschlagen</button></div>`;
   } else rsvpBody += `<p class="muted" style="margin:0">Du hast eingeladen. Hier siehst du die Antwort.</p>`;
 
-  return `<a class="back" href="#">${I.left} Alle Dates</a>
-  <article class="invite">${BOW}
+  return `<a class="back" href="${past ? "#erinnerungen" : "#"}">${I.left} ${past ? "Alle Erinnerungen" : "Alle Dates"}</a>
+  <article class="invite">${decor(d.date)}
     <div class="eyebrow">Du bist eingeladen</div>
     <h1>${esc(fmtLong(d.date))}</h1>
     <div class="sub">${esc(d.city || "")}${d.city && d.title ? " · " : ""}${esc(d.title || "")}</div>
     ${d.forName ? `<div class="for">Für ${esc(d.forName)}${d.fromName ? ", von " + esc(d.fromName) : ""}</div>` : '<div style="height:16px"></div>'}
     ${weatherBox(d)}
-    ${stops ? `<ol class="tl">${stops}</ol>` : '<p class="muted" style="margin-top:20px">Noch keine Stationen eingetragen.</p>'}
+    ${stops ? `<ol class="tl">${stops}</ol>` : '<p class="muted" style="margin-top:20px">Noch nichts geplant.</p>'}
   </article>
 
   <section class="panel"><h2>Antwort</h2>${rsvpBody}</section>
 
   <section class="panel"><h2>${past ? "Erinnerungen" : "Fotos"}</h2>
-    ${photos.length ? `<div class="photos">${photos.map(p => `<figure>${S.urls[p.path] ? `<img src="${esc(S.urls[p.path])}" alt="Foto vom Date" loading="lazy" data-act="zoom">` : ""}<button type="button" data-act="delphoto" data-id="${esc(p.id)}" aria-label="Foto löschen">×</button></figure>`).join("")}</div>` : `<p class="muted">${past ? "Ladet Fotos von diesem Abend hoch." : "Nach dem Date könnt ihr hier Fotos sammeln."}</p>`}
+    ${photos.length ? `<div class="photos">${photos.map(p => `<figure>${S.urls[p.path] ? `<img src="${esc(S.urls[p.path])}" alt="Foto vom Date" loading="lazy" data-act="zoom">` : ""}<button type="button" data-act="delphoto" data-id="${esc(p.id)}" aria-label="Foto löschen">×</button></figure>`).join("")}</div>` : `<p class="muted">${past ? "Hier kommen unsere Fotos von diesem Abend hin." : "Nach dem Date sammeln wir hier unsere Fotos."}</p>`}
     <label class="btn" for="upload">${I.plus} Fotos hinzufügen</label><input id="upload" type="file" accept="image/*" multiple hidden data-date="${esc(d.id)}">
     <label class="f" for="memo-${esc(d.id)}" style="margin-top:14px">Notiz zum Abend
       <textarea id="memo-${esc(d.id)}" class="in" placeholder="Was war das Beste an dem Abend?" maxlength="2000">${esc(d.memo || "")}</textarea></label>
@@ -361,11 +437,11 @@ function viewEdit() {
   if (S.draftMissing) return S.loaded ? '<p class="muted">Dieses Date gibt es nicht mehr.</p>' : '<p class="muted">Lädt …</p>';
   const d = S.draft;
   const stops = d.stops.map((s, i) => `<div class="stopedit">
-    <div class="hd"><b>Station ${i + 1}</b><div class="row">
+    <div class="hd"><b>Punkt ${i + 1}</b><div class="row">
       <button class="iconbtn" type="button" data-act="up" data-i="${i}" aria-label="Nach oben"${i === 0 ? " disabled" : ""}>${I.up}</button>
       <button class="iconbtn" type="button" data-act="down" data-i="${i}" aria-label="Nach unten"${i === d.stops.length - 1 ? " disabled" : ""}>${I.down}</button>
-      <button class="iconbtn" type="button" data-act="rmstop" data-i="${i}" aria-label="Station entfernen">${I.x}</button></div></div>
-    ${i > 0 ? `<label class="f" for="s-walk-${i}">Weg von der Station davor <input id="s-walk-${i}" class="in" data-s="${i}" data-k="walk" value="${esc(s.walk)}" placeholder="z. B. 9 Min zu Fuß"></label>` : ""}
+      <button class="iconbtn" type="button" data-act="rmstop" data-i="${i}" aria-label="Punkt entfernen">${I.x}</button></div></div>
+    ${i > 0 ? `<label class="f" for="s-walk-${i}">Weg vom Punkt davor <input id="s-walk-${i}" class="in" data-s="${i}" data-k="walk" value="${esc(s.walk)}" placeholder="z. B. 9 Min zu Fuß"></label>` : ""}
     <div class="grid2"><label class="f" for="s-time-${i}">Uhrzeit <input id="s-time-${i}" class="in" type="time" data-s="${i}" data-k="time" value="${esc(s.time)}"></label>
       <label class="f" for="s-cat-${i}">Art <select id="s-cat-${i}" class="in" data-s="${i}" data-k="cat">${Object.entries(CATS).map(([k, c]) => opt(k, c.label, s.cat)).join("")}</select></label></div>
     <label class="f" for="s-name-${i}">Name <input id="s-name-${i}" class="in" data-s="${i}" data-k="name" value="${esc(s.name)}" placeholder="z. B. Mathäser Filmpalast"></label>
@@ -384,9 +460,9 @@ function viewEdit() {
       <label class="f" for="e-for">Für <input id="e-for" class="in" data-k="forName" value="${esc(d.forName)}" maxlength="40"></label>
       <label class="f" for="e-from">Von <input id="e-from" class="in" data-k="fromName" value="${esc(d.fromName)}" maxlength="40"></label>
     </div>
-    <h2 style="font-size:22px;margin-top:6px">Stationen</h2>
-    ${stops || '<p class="muted">Noch keine Station.</p>'}
-    <button class="btn" type="button" data-act="addstop">${I.plus} Station hinzufügen</button>
+    <h2 style="font-size:22px;margin-top:6px">Was, Wann und wo?</h2>
+    ${stops || '<p class="muted">Noch nichts eingetragen.</p>'}
+    <button class="btn" type="button" data-act="addstop">${I.plus} Weiteren Punkt hinzufügen</button>
     <div class="row" style="margin-top:8px"><button class="btn primary" type="submit" id="savebtn">Date speichern</button><a class="btn ghost" href="${d.id ? "#d-" + esc(d.id) : "#"}">Abbrechen</a></div>
   </form>`;
 }
@@ -403,7 +479,7 @@ function viewIdeas() {
   const row = i => `<div class="idea ${i.done ? "done" : ""}"><input type="checkbox" id="ck-${esc(i.id)}" data-act="toggleidea" data-id="${esc(i.id)}" ${i.done ? "checked" : ""} aria-label="Erledigt">
      <div><div class="tx">${esc(i.text)}</div><div class="tg">${esc(i.tag || "")} · von ${esc(personName(i.by))}</div></div>
      <div class="row">${i.done ? "" : `<button class="btn small" type="button" data-act="planidea" data-id="${esc(i.id)}">Planen</button>`}<button class="iconbtn" type="button" data-act="delidea" data-id="${esc(i.id)}" aria-label="Idee löschen">${I.x}</button></div></div>`;
-  return `<p class="muted" style="margin-top:0">Sammelt hier, was ihr mal zusammen machen wollt. Mit „Planen“ wird daraus ein Date.</p>
+  return `<p class="muted" style="margin-top:0">Hier sammeln wir, was wir mal zusammen machen wollen. Mit „Planen“ wird daraus ein Date.</p>
    <form id="ideaform" class="panel" style="margin-top:0;display:grid;gap:10px">
      <label class="f" for="idea-text">Neue Idee <input id="idea-text" class="in" placeholder="z. B. Eislaufen gehen" maxlength="200"></label>
      <div class="row"><select id="idea-tag" class="in" style="flex:1;min-width:140px" aria-label="Kategorie">${IDEA_TAGS.map(t => `<option>${t}</option>`).join("")}</select><button class="btn primary" type="submit">Hinzufügen</button></div>
@@ -625,6 +701,22 @@ function notify(title, body, url) {
   if (!sb) return;
   sb.functions.invoke("notify", { body: { title, body, url } }).catch(e => console.error(e));
 }
+
+/* ---------- auto update ---------- */
+async function checkUpdate() {
+  try {
+    const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
+    const v = (await r.json()).v;
+    if (v > APP_VERSION) {
+      let tried = null; try { tried = sessionStorage.getItem("an-upd"); } catch (e) {}
+      if (tried === String(v)) return;
+      try { sessionStorage.setItem("an-upd", String(v)); } catch (e) {}
+      location.replace("./?v=" + v + location.hash);
+    }
+  } catch (e) {}
+}
+checkUpdate();
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
 
 /* ---------- boot ---------- */
 let subscribed = false;
