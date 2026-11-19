@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_VERSION = 7;
+const APP_VERSION = 8;
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -47,6 +47,7 @@ const I = {
   home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>',
   heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></svg>',
   photo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>',
+  heartfill:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-8-4.9-8-11A4.6 4.6 0 0 1 12 7.3 4.6 4.6 0 0 1 20 10c0 6.1-8 11-8 11z"/></svg>',
   bulb:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>',
   plus:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   nav:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L3 10.5l7.5 3 3 7.5z"/></svg>',
@@ -471,6 +472,7 @@ const sb = configured && window.supabase ? window.supabase.createClient(CFG.SUPA
 const S = {
   phase: "boot", email: "", me: null, slow: false, loaded: false,
   dates: [], events: [], comments: [], photos: [], ideas: [], people: {}, urls: {},
+  nudges: [], answers: [], questions: [], prefs: null, extrasOk: false, recapIdx: null,
   calMonth: todayStr().slice(0, 7), calDay: todayStr(),
   route: { name: "home" }, draft: null, setup: false, err: ""
 };
@@ -516,6 +518,7 @@ async function loadAll() {
       const { data } = await sb.storage.from("photos").createSignedUrls(need, 60 * 60 * 24 * 7);
       (data || []).forEach(x => { if (x.signedUrl && x.path) S.urls[x.path] = x.signedUrl; });
     }
+    try { await loadExtras(); } catch (e) { console.error(e); }
     if (S.route.name === "edit" && S.draftMissing) startDraft(S.route.id), render(true);
     if (S.route.name === "eventedit" && S.draftMissing) startEventDraft(S.route.id), render(true);
   } catch (e) { console.error(e); S.slow = true; }
@@ -539,6 +542,10 @@ function readRoute() {
   const h = location.hash.slice(1);
   if (h === "ideen") return { name: "ideas" };
   if (h === "erinnerungen") return { name: "memories" };
+  if (h === "karte") return { name: "map" };
+  if (h === "rueckblick") return { name: "recap" };
+  if (h === "fragen") return { name: "questions" };
+  if (h === "einstellungen") return { name: "settings" };
   if (h === "kalender") return { name: "calendar" };
   if (h === "neuer-termin") return { name: "eventedit", id: null };
   if (h.startsWith("termin-bearbeiten-")) return { name: "eventedit", id: h.slice(18) };
@@ -561,10 +568,11 @@ function render(force) {
   if (!force) document.querySelectorAll("#app input[id], #app textarea[id]").forEach(el => { if (el.type !== "file" && el.type !== "checkbox") keep[el.id] = el.value; });
   const v = S.route.name;
   S.theme = applyTheme(v === "home");
-  app.innerHTML = header() + (v === "date" ? viewDate() : v === "edit" ? viewEdit() : v === "ideas" ? viewIdeas() : v === "memories" ? viewMemories() : v === "calendar" ? viewCalendar() : v === "event" ? viewEvent() : v === "eventedit" ? viewEventEdit() : viewHome());
+  app.innerHTML = header() + (v === "date" ? viewDate() : v === "edit" ? viewEdit() : v === "ideas" ? viewIdeas() : v === "memories" ? viewMemories() : v === "map" ? viewMap() : v === "recap" ? viewRecap() : v === "questions" ? viewQuestions() : v === "settings" ? viewSettings() : v === "calendar" ? viewCalendar() : v === "event" ? viewEvent() : v === "eventedit" ? viewEventEdit() : viewHome());
   Object.entries(keep).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
   if (aid) { const el = document.getElementById(aid); if (el) { el.focus(); try { if (sel != null) el.setSelectionRange(sel, sel); } catch (e) {} } }
   renderTabs(); renderSetup();
+  if (v === "map") initMap(); else if (mapObj) { mapObj.remove(); mapObj = null; }
   if (v === "date") loadWeather(S.dates.find(x => x.id === S.route.id));
   if (v === "event") loadWeather(S.events.find(x => x.id === S.route.id));
 }
@@ -583,8 +591,8 @@ function viewGate() {
 function header() {
   const meName = S.me && S.people[S.me] ? esc(S.people[S.me].name) : "";
   const warn = S.slow ? '<div class="banner">Die Daten laden gerade nicht. Prüfe deine Internetverbindung. Was du siehst, ist eventuell nicht aktuell.</div>' : "";
-  return warn + `<header class="topbar"><div class="brand"><span class="mono" aria-hidden="true">A<small>+</small>N</span><h1>${S.route.name === "ideas" ? "Ideen" : S.route.name === "memories" ? "Erinnerungen" : ["calendar", "event", "eventedit"].includes(S.route.name) ? "Kalender" : "Unsere Dates"}</h1></div>
-    <div class="who">${meName ? `Hallo ${meName}<br>` : ""}<button type="button" data-act="setup">Name</button> · <button type="button" data-act="logout">Abmelden</button></div></header>`;
+  return warn + `<header class="topbar"><div class="brand"><span class="mono" aria-hidden="true">A<small>+</small>N</span><h1>${S.route.name === "ideas" ? "Ideen" : ["memories", "map", "recap"].includes(S.route.name) ? "Erinnerungen" : S.route.name === "questions" ? "Fragen" : S.route.name === "settings" ? "Einstellungen" : ["calendar", "event", "eventedit"].includes(S.route.name) ? "Kalender" : "Unsere Dates"}</h1></div>
+    <div class="who">${meName ? `Hallo ${meName}<br>` : ""}<a class="setlink" href="#einstellungen">Einstellungen</a></div></header>`;
 }
 function renderTabs() {
   let el = $("#tabs");
@@ -594,7 +602,7 @@ function renderTabs() {
   const pastDate = cur && cur.date < todayStr();
   el.innerHTML = `<nav aria-label="Navigation">
     <a href="#" class="${v === "home" || (v === "date" && !pastDate) || ["calendar", "event", "eventedit"].includes(v) ? "on" : ""}">${I.heart}Dates</a>
-    <a href="#erinnerungen" class="${v === "memories" || pastDate ? "on" : ""}">${I.photo}Erinnerungen</a>
+    <a href="#erinnerungen" class="${["memories", "map", "recap"].includes(v) || pastDate ? "on" : ""}">${I.photo}Erinnerungen</a>
     <a href="#neu" class="plus ${v === "edit" ? "on" : ""}"><span class="p">${I.plus}</span>Neues Date</a>
     <a href="#ideen" class="${v === "ideas" ? "on" : ""}">${I.bulb}Ideen</a></nav>`;
 }
@@ -621,7 +629,7 @@ function viewHome() {
   const sorted = [...S.dates].filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
   const up = sorted.filter(d => d.date >= t), past = sorted.filter(d => d.date < t).reverse();
   const next = up[0];
-  let h = sceneTop(S.theme) + pushPanel() + togetherBox();
+  let h = sceneTop(S.theme) + pushPanel() + togetherBox() + thinkBox();
   if (next) {
     const first = (next.stops || [])[0];
     h += `<a class="next" href="#d-${esc(next.id)}"><div class="eyebrow">Nächstes Date</div><div class="big">${esc(countdown(next))}</div>
@@ -631,11 +639,198 @@ function viewHome() {
   } else {
     h += `<div class="empty"><p>Gerade ist kein Date geplant.</p><a class="btn primary" href="#neu">${I.plus} Date planen</a></div>`;
   }
-  h += upcomingBox();
+  h += qdayBox() + upcomingBox();
   if (up.length > 1) h += `<section class="section"><h2>Geplant</h2><div class="list">${up.slice(1).map(d => itemCard(d)).join("")}</div></section>`;
   const openIdeas = S.ideas.filter(i => !i.done).length;
   h += `<section class="section"><h2>Ideen</h2><p class="muted">${openIdeas ? `${openIdeas} offene ${openIdeas === 1 ? "Idee" : "Ideen"} auf unserer Liste.` : "Noch keine Ideen gesammelt."} <a href="#ideen">Zur Ideenliste</a></p></section>`;
   return h;
+}
+
+const QUESTIONS = ["Welcher Moment mit mir hat dich zuletzt zum Lachen gebracht?", "Was war dein allererster Eindruck von mir?", "Wann wusstest du, dass du mich magst?", "Was ist dein Lieblingsfoto von uns und warum?", "Welches Date mit mir war bisher das schönste?", "Was war unser lustigster Moment zusammen?", "Welches Lied erinnert dich an mich?", "Was habe ich mal gesagt, das du nie vergessen wirst?", "Welche kleine Geste von mir freut dich am meisten?", "Was war das erste, was dir an mir aufgefallen ist?", "Wann hast du dich in meiner Nähe besonders wohl gefühlt?", "Welcher Tag mit mir würdest du gern noch einmal erleben?", "Was war unser peinlichster Moment zusammen?", "Wo war unser schönster Spaziergang?", "Welches Essen verbindest du mit uns?", "Was hast du gedacht, als wir uns das erste Mal geschrieben haben?", "Welche Nachricht von mir hast du dir gemerkt?", "Wann hast du zuletzt an mich gedacht und warum?", "Was war dein Highlight dieser Woche mit mir?", "Welcher Film erinnert dich an uns?", "Was war das beste Geschenk, das du von mir bekommen hast?", "Welche Angewohnheit von mir findest du heimlich süß?", "Was war das Mutigste, das wir zusammen gemacht haben?", "Welcher Ort ist für dich „unser Ort“?", "Was hast du an unserem ersten Date gedacht?", "Wann haben wir zuletzt so richtig lange geredet und worüber?", "Was war unser bester Insider-Witz?", "Welcher Abend mit mir war der gemütlichste?", "Was hat dich an mir überrascht?", "Wann warst du stolz auf mich?", "Was war das Schönste, das ich je für dich gemacht habe?", "Welches Wetter passt am besten zu uns?", "Welche drei Wörter beschreiben uns als Paar?", "Was magst du an meiner Stimme?", "Was ist dein Lieblingsort in meiner Nähe?", "Welche Farbe verbindest du mit mir?", "Was ist das Erste, woran du morgens bei mir denkst?", "Wobei fühlst du dich mit mir am meisten wie du selbst?", "Was bringe ich in dein Leben, das vorher gefehlt hat?", "Welche Eigenschaft von mir hättest du gern auch?", "Wann fühlst du dich von mir am meisten verstanden?", "Was ist unsere beste gemeinsame Gewohnheit?", "Welches Emoji passt am besten zu mir?", "Wenn wir eine Band wären, wie würde sie heißen?", "Was würdest du über uns in einem Film zeigen?", "Welcher Schauspieler sollte mich in einem Film über uns spielen?", "Was ist die süßeste Sache, die ich jemals gemacht habe?", "Wie würdest du mich einem Fremden in einem Satz beschreiben?", "Was kann ich besser als du?", "Was kannst du besser als ich?", "Bei welchem Thema könnten wir stundenlang diskutieren?", "Was ist dein liebster Spitzname für mich?", "Welches Tier wäre ich und warum?", "Welches Tier wärst du und warum?", "Wenn wir zusammen ein Restaurant eröffnen würden, was gäbe es dort?", "Was würdest du mit mir machen, wenn wir einen Tag unsichtbar wären?", "Wenn wir für einen Tag die Körper tauschen würden, was würdest du als Erstes tun?", "Welche Superkraft hätte ich?", "Welche Superkraft hättest du gern für uns beide?", "Wenn wir in einer Serie wären, welche wäre es?", "Welches Lied wäre unser Hochzeitstanz, rein hypothetisch?", "Welches Gericht sollten wir zusammen kochen lernen?", "Was wäre unser perfekter Sonntag?", "Wenn wir eine Zeitreise machen könnten, wohin würden wir reisen?", "In welcher Epoche hätten wir uns gern kennengelernt?", "Was wäre unser Teamname bei einem Quiz?", "Was würden wir mit einer Million Euro als Erstes machen?", "Welche Sportart sollten wir zusammen ausprobieren?", "Wenn du mir einen Brief von vor 10 Jahren schreiben könntest, was stünde drin?", "Was würde dein 12-jähriges Ich über mich sagen?", "Welche Pizza wären wir als Paar?", "Was ist das Verrückteste, das du mit mir machen würdest?", "Wenn unser Leben ein Buch wäre, wie hieße dieses Kapitel?", "Welches Spiel würden wir in einer Spielshow gewinnen?", "Was würdest du in unsere Zeitkapsel legen?", "Welche Eissorte beschreibt unsere Beziehung?", "Wenn wir einen Hund hätten, wie würde er heißen?", "Was wäre dein perfektes Date ohne Budgetgrenze?", "Was wäre dein perfektes Date mit nur 10 Euro?", "Welches Kostüm sollten wir als Paar mal tragen?", "Was wäre unser Song im Karaoke?", "Welche Stadt sollten wir als Nächstes zusammen entdecken?", "Welches Land würdest du am liebsten mit mir bereisen?", "Wo wollen wir in fünf Jahren zusammen hin?", "Was möchtest du nächstes Jahr unbedingt mit mir erleben?", "Welche Tradition sollten wir zwei einführen?", "Was steht ganz oben auf unserer gemeinsamen Bucket List?", "Wie stellst du dir unsere erste gemeinsame Wohnung vor?", "Was möchtest du mit mir lernen?", "Welches Abenteuer sollten wir uns trauen?", "Wie feiern wir unseren 10. Jahrestag?", "Wo würdest du gern mit mir den Sonnenaufgang sehen?", "Welches Konzert sollten wir zusammen besuchen?", "Welchen Berg sollten wir zusammen besteigen?", "Welche Reise würdest du mit mir mit dem Zug machen?", "Was wünschst du dir für unseren nächsten Urlaub?", "Wie sieht ein perfekter Winterurlaub mit mir aus?", "Wie sieht ein perfekter Sommerurlaub mit mir aus?", "Welchen Kurs könnten wir zusammen machen?", "Was wolltest du schon immer mal mit mir ausprobieren?", "Was möchtest du an unserem nächsten Date anders machen?", "Wie stellst du dir uns mit 70 vor?", "Was möchtest du in einem Jahr über uns sagen können?", "Was macht für dich eine gute Beziehung aus?", "Was bedeutet Vertrauen für dich?", "Wann fühlst du dich am meisten geliebt?", "Wie kann ich dich an einem schlechten Tag am besten unterstützen?", "Was brauchst du, wenn du gestresst bist?", "Wofür bist du heute dankbar?", "Was hat dich diese Woche glücklich gemacht?", "Was beschäftigt dich gerade am meisten?", "Worauf freust du dich gerade am meisten?", "Was ist ein Traum, den du noch niemandem erzählt hast?", "Was hast du in letzter Zeit über dich selbst gelernt?", "Welche Person hat dich am meisten geprägt?", "Wann warst du das letzte Mal richtig stolz auf dich?", "Was würdest du gern öfter tun?", "Was würdest du gern weniger tun?", "Was ist dir im Leben am wichtigsten?", "Wovor hast du manchmal Angst?", "Was macht dich wütend?", "Was beruhigt dich am schnellsten?", "Welcher Ort gibt dir Kraft?", "Was war die beste Entscheidung deines Lebens bisher?", "Was würdest du deinem jüngeren Ich raten?", "Was ist ein Kompliment, das du nie vergessen hast?", "Wie sieht für dich ein perfekter Tag aus?", "Was ist dein liebstes Kindheitserlebnis?", "Welche Tradition aus deiner Familie magst du am meisten?", "Was wolltest du als Kind werden?", "Was war dein Lieblingsspielzeug als Kind?", "Welches Buch hat dich verändert?", "Welcher Film bringt dich immer zum Weinen?", "Was ist dein Guilty Pleasure?", "Was ist dein liebster Geruch?", "Welches Geräusch magst du am liebsten?", "Was ist dein Lieblingswort?", "Welche Jahreszeit magst du am meisten und warum?", "Was ist dein Lieblingsessen, wenn es dir schlecht geht?", "Was ist dein liebstes Frühstück?", "Was ist das Beste, das du je gegessen hast?", "Welches Lied hörst du gerade in Dauerschleife?", "Welche App benutzt du viel zu oft?", "Was machst du am liebsten, wenn du ganz allein bist?", "Was ist deine liebste Erinnerung an die Schule?", "Welcher Lehrer ist dir am meisten in Erinnerung geblieben?", "Was würdest du tun, wenn du einen Tag lang keine Verpflichtungen hättest?", "Welche Fähigkeit würdest du gern sofort können?", "Wofür würdest du nachts um drei aufstehen?", "Was ist dein liebstes Ritual am Abend?", "Was ist dein liebstes Ritual am Morgen?", "Wann hast du zuletzt etwas zum ersten Mal gemacht?", "Was ist dein bester Ratschlag für schlechte Tage?", "Was bringt dich zuverlässig zum Lachen?", "Welche kleine Sache macht deinen Tag sofort besser?", "Was würdest du gern mal ausprobieren, traust dich aber noch nicht?", "Was magst du an dir selbst am meisten?", "Welche Eigenschaft schätzt du an Freunden am meisten?", "Wer ist dein Vorbild?", "Was ist der beste Rat, den du je bekommen hast?", "Welche Frage würdest du gern mal gestellt bekommen?", "Worüber denkst du nach, bevor du einschläfst?", "Was ist dein liebster Ort in Fürstenfeldbruck?", "Was ist dein liebster Ort in München?", "Welcher Ausflug in der Nähe ist unterschätzt?", "Was sollten wir mal an einem Regentag machen?", "Was sollten wir mal an einem Schneetag machen?", "Was sollten wir mal an einem heißen Sommertag machen?", "Welches Spiel sollten wir mal wieder spielen?", "Welcher Film steht auf deiner Liste für unseren nächsten Filmabend?", "Welche Serie sollten wir zusammen anfangen?", "Welches Rezept sollten wir als Nächstes zusammen kochen?", "Was sollten wir zusammen backen?", "Welches Café wollten wir schon längst mal ausprobieren?", "Welches Restaurant sollten wir als Nächstes testen?", "Welcher Ausflug wäre perfekt für einen spontanen Samstag?", "Was ist unser bester Plan für einen Abend zu Hause?", "Was gehört in unser perfektes Picknick?", "Welches Brettspiel gewinnst du gegen mich?", "Wer von uns würde in einer Zombie-Apokalypse länger überleben?", "Wer von uns ist der bessere Koch?", "Wer von uns ist pünktlicher?", "Wer von uns schläft schneller ein?", "Wer von uns hat den besseren Musikgeschmack?", "Wer von uns ist ordentlicher?", "Wer von uns lacht lauter?", "Wer von uns würde eher im Supermarkt verloren gehen?", "Wer von uns ist der bessere Autofahrer?", "Wer von uns kann besser Geheimnisse bewahren?", "Wer von uns hat die besseren Ideen für Dates?", "Wer von uns ist abenteuerlustiger?", "Wer von uns ist dramatischer, wenn er krank ist?", "Wer von uns isst schneller?", "Wer von uns würde eher einen Tanzkurs vorschlagen?", "Wer von uns verliert öfter das Handy?", "Wer von uns ist sportlicher?", "Wer von uns ist der bessere Fotograf?", "Wer von uns schreibt die längeren Nachrichten?", "Wer von uns würde eher ein Haustier adoptieren?", "Wer von uns hat zuerst „Ich hab dich lieb“ gesagt?", "Was ist dein Lieblingsteil unseres Alltags?", "Was sollten wir öfter zusammen machen?", "Was sollten wir weniger machen?", "Was ist ein kleiner Wunsch, den ich dir diese Woche erfüllen kann?", "Was möchtest du, dass ich über dich weiß, aber noch nicht weiß?", "Was war ein Moment, in dem ich dich missverstanden habe?", "Wann habe ich dich zuletzt überrascht?", "Wie zeigst du am liebsten Liebe?", "Wie bekommst du am liebsten Liebe gezeigt?", "Was bedeutet Zuhause für dich?", "Welche Erinnerung an uns möchtest du nie vergessen?", "Was würdest du in einem Liebesbrief an mich schreiben?", "Was ist das Schönste an uns beiden?", "Wo hast du dich das erste Mal richtig verliebt gefühlt?", "Welcher Satz von mir macht dich sofort glücklich?", "Welche Fotos von uns sollten wir ausdrucken?", "Was war unser schönster Sonnenuntergang?", "Welche gemeinsame Mahlzeit war die beste?", "Was ist dein liebster Moment, kurz bevor wir uns sehen?", "Was vermisst du, wenn wir uns länger nicht sehen?", "Was machst du, wenn du mich vermisst?", "Welches Kleidungsstück von mir magst du am liebsten?", "Welches Outfit von mir hat dich umgehauen?", "Welche Eigenschaft von mir möchtest du nie missen?", "Was hat sich für dich verändert, seit wir zusammen sind?", "Wann haben wir uns das letzte Mal so richtig ausgelacht?", "Was würdest du über uns auf ein Plakat schreiben?", "Welche Nachricht würdest du mir gern jeden Morgen schicken?", "Welches Geschenk würdest du mir schenken, wenn Geld keine Rolle spielt?", "Was ist dein liebstes Selfie von uns?", "Was würdest du an unserem ersten Date heute anders machen?", "Was war das Romantischste, das wir je gemacht haben?", "Welches Lied würdest du mir widmen?", "Wohin würdest du mich spontan entführen?", "Welche Überraschung würde dich am meisten freuen?", "Was macht dich nervös, wenn wir uns treffen?", "Welcher Moment heute hat dich an mich erinnert?", "Was ist unsere schönste gemeinsame Tradition bisher?", "Was war die beste Idee, die ich je hatte?", "Was war die schlechteste Idee, die ich je hatte?", "Welches Gericht von mir willst du nie wieder essen?", "Wenn wir ein gemeinsames Hobby hätten, welches wäre es?", "Welches Instrument sollten wir zusammen lernen?", "Wenn wir zusammen ein Buch schreiben würden, worüber?", "Wenn wir einen Podcast hätten, wie würde er heißen?", "Welche Ausrede habe ich schon mal benutzt, die du durchschaut hast?", "Was ist das Lustigste, das ich im Schlaf gemacht habe?", "Welcher Streit war im Nachhinein total albern?", "Was haben wir aus unserem letzten Streit gelernt?", "Was ist für dich ein perfekter Kompromiss?", "Wann sollte ich dich einfach in Ruhe lassen?", "Wann solltest du mich einfach in Ruhe lassen?", "Welche Grenze ist dir in einer Beziehung wichtig?", "Was gibt dir in unserer Beziehung Sicherheit?", "Welches Versprechen möchtest du mir geben?", "Was möchtest du gern von mir lernen?", "Was hast du schon von mir gelernt?", "Welche Eigenschaft von mir hat dich am Anfang irritiert und jetzt magst du sie?", "Was würdest du tun, wenn wir uns einen ganzen Tag nicht schreiben könnten?", "Was war das längste Telefonat, an das du dich erinnerst?", "Welche Frage wolltest du mir schon immer stellen?", "Was wünschst du dir für meine Zukunft?", "Was wünschst du dir für deine Zukunft?", "Welche Ziele hast du für dieses Jahr?", "Was möchtest du beruflich später machen?", "Wo möchtest du später wohnen?", "Stadt oder Land und warum?", "Berge oder Meer und warum?", "Frühaufsteher oder Nachteule?", "Kino oder Netflix?", "Süß oder salzig?", "Kaffee oder Tee?", "Pizza oder Pasta?", "Sommer oder Winter?", "Hund oder Katze?", "Sonnenaufgang oder Sonnenuntergang?", "Lieber reden oder schreiben?", "Lieber Abenteuer oder Entspannung im Urlaub?", "Lieber kochen oder bestellen?", "Lieber Konzert oder Theater?", "Lieber Skifahren oder Strandurlaub?", "Lieber Brettspiel oder Videospiel?", "Lieber eine Woche ohne Handy oder eine Woche ohne Musik?", "Lieber für immer Winter oder für immer Sommer?", "Lieber fliegen können oder unsichtbar sein?", "Lieber in die Vergangenheit oder in die Zukunft reisen?", "Was war das Beste an deinem Tag heute?", "Was war das Anstrengendste an deinem Tag heute?", "Was hat dich heute überrascht?", "Worüber hast du heute gelacht?", "Was hast du heute Neues gelernt?", "Wen hast du heute vermisst?", "Was würdest du heute gern noch machen?", "Welches Wort beschreibt deinen Tag heute?", "Was hat dich heute geärgert?", "Worauf freust du dich morgen?", "Was möchtest du diese Woche noch schaffen?", "Was war dein bester Moment diesen Monat?", "Was war dein schönster Moment dieses Jahr?", "Was möchtest du nächsten Monat unbedingt machen?", "Welche Kleinigkeit hat dich heute glücklich gemacht?", "Was würdest du gern jemandem heute noch sagen?", "Wenn heute ein Film wäre, welches Genre wäre er?", "Welcher Song passt zu deinem heutigen Tag?", "Was hast du heute für dich selbst getan?", "Wobei kann ich dich diese Woche unterstützen?", "Was ist dein liebstes Weihnachtsritual?", "Was ist dein liebster Geburtstagsbrauch?", "Wie würdest du gern Silvester mit mir feiern?", "Was ist das schönste Geschenk, das du je bekommen hast?", "Welche Feiertage magst du am meisten?", "Was gehört für dich zu einem perfekten Herbsttag?", "Was gehört für dich zu einem perfekten Frühlingstag?", "Was gehört für dich zu einem perfekten Sommerabend?", "Was gehört für dich zu einem perfekten Wintertag?", "Welches Gefühl verbindest du mit dem ersten Schnee?", "Was ist dein liebster Duft im Winter?", "Was ist dein liebster Duft im Sommer?", "Welches Getränk wärmt dich am besten auf?", "Was ist dein liebstes Eis?", "Welcher Ausflug in die Berge war dein schönster?", "Was magst du am Skifahren oder was würdest du gern daran mögen?", "Welches Hüttengericht ist das beste?", "Was ist dein liebster See in Bayern?", "Welcher Biergarten ist der schönste?", "Welche Stadt in Europa willst du unbedingt sehen?", "Was möchtest du in Prag unbedingt zusammen machen?", "Welche Sprache würdest du gern mit mir lernen?", "Was wäre unser Motto für dieses Jahr?", "Welche drei Dinge nehmen wir auf eine einsame Insel mit?", "Was ist das Erste, das du machen würdest, wenn wir zusammen wohnen?", "Wie sähe unser perfekter Filmabend aus?", "Was wäre auf unserem gemeinsamen Wappen?", "Welche Farbe hätte unser Haus?", "Welche Pflanze sollten wir zusammen großziehen?", "Was war ein Moment, in dem du dich mit mir sicher gefühlt hast?", "Was möchtest du mir schon lange mal sagen?", "Was liebst du an der Art, wie ich mit anderen umgehe?", "Wann hast du mich das letzte Mal bewundert?", "Was ist dein liebster Moment des Tages mit mir?", "Welche Erinnerung an uns bringt dich immer zum Lächeln?", "Was wünschst du dir für unser nächstes Jahr zusammen?", "Was ist das Wichtigste, das wir als Paar gelernt haben?", "Wofür bist du mir heute dankbar?", "Wenn du unsere Beziehung in einem Satz beschreiben müsstest, wie würde er lauten?", "Welche Gewohnheit von dir hast du dir von mir abgeschaut?", "Was ist das Netteste, das jemand über uns gesagt hat?", "Welche drei Dinge machen einen Abend mit mir perfekt?", "Was würdest du kochen, um mich zu beeindrucken?", "Welches Foto von mir sollte ich unbedingt öfter zeigen?", "Was ist ein Ort, an dem wir noch nie zusammen waren, aber hin müssen?", "Welche Jahreszeit passt am besten zu mir?", "Was würdest du an einem Tag nur für uns zwei planen?", "Welcher Moment hat dich bei uns zuletzt gerührt?", "Welche Nachricht von mir würdest du am liebsten ausdrucken?", "Was ist das Beste, das wir zusammen erschaffen haben?", "Welche Überraschung habe ich dir gemacht, die du nie vergisst?", "Was würdest du gern an einem verregneten Sonntag mit mir machen?", "Welche Musik hören wir am liebsten zusammen im Auto?", "Welche Reise würdest du mit mir sofort buchen, wenn du könntest?", "Was macht unsere Beziehung besonders?", "Woran merkst du, dass ich gute Laune habe?", "Woran merkst du, dass mich etwas beschäftigt?", "Was möchtest du dir von mir abschauen?", "Welcher Duft erinnert dich an mich?"];
+
+/* ---------- extras: nudges, daily question, prefs ---------- */
+async function loadExtras() {
+  if (!sb) return;
+  const since = dstr(new Date(Date.now() - 120 * 864e5));
+  const [n, a, q, p] = await Promise.all([
+    sb.from("nudges").select("*").order("created_at", { ascending: false }).limit(30),
+    sb.from("answers").select("*").gte("qdate", since),
+    sb.from("questions").select("*"),
+    S.me ? sb.from("prefs").select("*").eq("user_id", S.me).maybeSingle() : Promise.resolve({ data: null })
+  ].map(x => Promise.resolve(x).catch(e => ({ error: e }))));
+  S.extrasOk = !n.error && !a.error && !q.error;
+  if (!n.error) S.nudges = (n.data || []).map(r => ({ id: r.id, by: r.author, at: Date.parse(r.created_at) }));
+  if (!a.error) S.answers = (a.data || []).map(r => ({ id: r.id, date: r.qdate, by: r.author, text: r.body, at: Date.parse(r.created_at) }));
+  if (!q.error) S.questions = (q.data || []).map(r => ({ id: r.id, text: r.body, date: r.for_date, by: r.author }));
+  if (!p.error) S.prefs = p.data || null;
+}
+function relTime(ts) {
+  const m = Math.round((Date.now() - ts) / 6e4);
+  if (m < 1) return "gerade eben";
+  if (m < 60) return `vor ${m} Min`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `vor ${h} Std`;
+  const d = new Date(ts), y = new Date(); y.setDate(y.getDate() - 1);
+  if (dstr(d) === dstr(y)) return "gestern";
+  return "am " + d.toLocaleDateString("de-DE", { day: "numeric", month: "short" });
+}
+function dayNo(ds) { return Math.round((parseDay(ds) - parseDay(TOGETHER_SINCE)) / 864e5) + 1; }
+function questionFor(ds) {
+  const own = S.questions.find(q => q.date === ds);
+  if (own) return { text: own.text, by: own.by };
+  const n = Math.round((parseDay(ds) - parseDay("2026-01-01")) / 864e5);
+  return { text: QUESTIONS[((n % QUESTIONS.length) + QUESTIONS.length) % QUESTIONS.length], by: null };
+}
+function otherName() { const o = otherPerson(); return o ? personName(o) : "Dein Schatz"; }
+function thinkBox() {
+  const last = S.nudges.find(n => n.by !== S.me), mine = S.nudges.find(n => n.by === S.me);
+  const recent = mine && Date.now() - mine.at < 30000;
+  return `<div class="think"><button class="thinkbtn${recent ? " sent" : ""}" type="button" data-act="nudge" aria-label="Ich denk an dich"${recent ? " disabled" : ""}>${I.heartfill}</button>
+    <div><div class="t">Ich denk an dich</div><div class="s">${recent ? "Herz ist unterwegs!" : `Ein Tipp, und ${esc(otherName())} bekommt ein Herz aufs Handy`}</div>
+    ${last ? `<div class="s2">${esc(personName(last.by))} hat ${esc(relTime(last.at))} an dich gedacht</div>` : ""}</div></div>`;
+}
+function qdayBox() {
+  if (!S.extrasOk) return "";
+  const t = todayStr(), q = questionFor(t);
+  const mine = S.answers.find(a => a.date === t && a.by === S.me), theirs = S.answers.find(a => a.date === t && a.by !== S.me);
+  const on = otherName();
+  let body;
+  if (mine) {
+    body = `<div class="ans"><b>Du</b><p>${esc(mine.text)}</p></div>` + (theirs ? `<div class="ans"><b>${esc(personName(theirs.by))}</b><p>${esc(theirs.text)}</p></div>` : `<div class="ans locked"><b>${esc(on)}</b><p>Hat noch nicht geantwortet.</p></div>`);
+  } else {
+    body = (theirs ? `<div class="ans locked"><b>${esc(personName(theirs.by))}</b><p>Hat schon geantwortet. Schreib deine Antwort, dann siehst du die andere.</p></div>` : "") +
+      `<form id="qform" class="qform"><textarea id="q-ans" class="in" placeholder="Deine Antwort …" maxlength="1000"></textarea><div class="row"><button class="btn primary" type="submit">Antworten</button></div></form>`;
+  }
+  return `<section class="qday"><div class="eyebrow">Frage des Tages · Tag ${dayNo(t)}</div><h3>${esc(q.text)}</h3>${q.by ? `<div class="hint">Frage von ${esc(personName(q.by))}</div>` : ""}
+    ${body}<div class="row" style="justify-content:space-between"><a class="small-link" href="#fragen">Frühere Fragen</a><a class="small-link" href="#fragen">Eigene Frage stellen</a></div></section>`;
+}
+function viewQuestions() {
+  if (!S.extrasOk) return `<a class="back" href="#">${I.left} Startseite</a><p class="muted">Die Fragen sind noch nicht eingerichtet. Führe in Supabase die Datei features.sql aus.</p>`;
+  const t = todayStr(), days = [];
+  for (let i = 1; i <= 30; i++) days.push(dstr(new Date(parseDay(t).getTime() - i * 864e5)));
+  const past = days.filter(d => S.answers.some(a => a.date === d));
+  const queue = S.questions.filter(q => q.date > t).sort((a, b) => a.date.localeCompare(b.date));
+  return `<a class="back" href="#">${I.left} Startseite</a>
+  <h2 style="font-size:28px;margin-bottom:6px">Fragen</h2>
+  <form id="addqform" class="panel" style="margin-top:8px;display:grid;gap:10px"><label class="f" for="newq">Eigene Frage stellen <span class="hint">Sie kommt am nächsten freien Tag für euch beide dran.</span><input id="newq" class="in" maxlength="200" placeholder="z. B. Was war dein Highlight im Urlaub?"></label><div class="row"><button class="btn primary" type="submit">Frage hinzufügen</button></div></form>
+  ${queue.length ? `<section class="section"><h2 style="font-size:21px">Demnächst</h2><div class="list" style="margin-top:10px">${queue.map(q => `<div class="crow"><span class="cdot" style="background:var(--accent)"></span><div><div class="t">${esc(q.text)}</div><div class="s">${esc(fmtShort(q.date))} · von ${esc(personName(q.by))}</div></div><span></span></div>`).join("")}</div></section>` : ""}
+  <section class="section"><h2 style="font-size:21px">Frühere Fragen</h2><div class="list" style="margin-top:10px">${past.length ? past.map(d => {
+    const as = S.answers.filter(a => a.date === d);
+    return `<div class="qold"><div class="s">${esc(fmtShort(d))} · Tag ${dayNo(d)}</div><div class="t">${esc(questionFor(d).text)}</div>${as.map(a => `<div class="ans"><b>${esc(a.by === S.me ? "Du" : personName(a.by))}</b><p>${esc(a.text)}</p></div>`).join("")}</div>`;
+  }).join("") : '<p class="muted" style="margin:0">Hier erscheinen eure Antworten der letzten 30 Tage.</p>'}</div></section>`;
+}
+function nextFreeQuestionDate() {
+  let d = parseDay(todayStr()); d.setDate(d.getDate() + 1);
+  const taken = new Set(S.questions.map(q => q.date));
+  while (taken.has(dstr(d))) d.setDate(d.getDate() + 1);
+  return dstr(d);
+}
+
+/* ---------- settings ---------- */
+const PREF_ROWS = [
+  ["eve", "Am Vorabend", "19:00 Uhr, mit Wetter und Tipp (Jacke, Schirm …)"],
+  ["hour", "Kurz vorher", "1 Stunde vor dem ersten Punkt, mit Route"],
+  ["events", "Auch für Termine", "Geburtstage, Reisen und andere Kalendereinträge"],
+  ["qday", "Frage des Tages", "Wenn die andere Person geantwortet hat"],
+  ["nudge", "Ich denk an dich", "Herzen von der anderen Person"]
+];
+function prefOn(k) { return !S.prefs || S.prefs[k] !== false; }
+function viewSettings() {
+  const meName = S.people[S.me] ? S.people[S.me].name : "";
+  const pushState = S.push === "on" ? "Mitteilungen sind auf diesem iPhone an." : S.push === "denied" ? "Mitteilungen sind blockiert. Erlauben unter Einstellungen → Mitteilungen → A+N." : S.push === "needhome" ? "Mitteilungen gehen nur, wenn die App über das Icon auf dem Home-Bildschirm geöffnet ist." : S.push === "off" ? "Mitteilungen sind auf diesem iPhone noch aus." : "Dieses Gerät unterstützt keine Mitteilungen.";
+  return `<a class="back" href="#">${I.left} Startseite</a>
+  <h2 style="font-size:28px;margin-bottom:14px">Einstellungen</h2>
+  <section class="panel" style="margin-top:0"><h2 style="font-size:19px">Mitteilungen</h2><p class="muted" style="margin:0 0 8px">${esc(pushState)}</p>
+    ${S.push === "off" ? '<button class="btn primary small" type="button" data-act="enablepush">Mitteilungen aktivieren</button>' : ""}
+    ${S.extrasOk ? PREF_ROWS.map(([k, t, s]) => `<button class="toggle" type="button" data-act="pref" data-k="${k}" aria-pressed="${prefOn(k)}"><span><span class="t">${t}</span><span class="s">${s}</span></span><span class="sw${prefOn(k) ? " on" : ""}"></span></button>`).join("") : '<p class="hint">Die Einstellungen erscheinen, sobald features.sql in Supabase ausgeführt ist.</p>'}
+    <p class="hint" style="margin:10px 0 0">Jeder von euch stellt das für sich selbst ein.</p></section>
+  <section class="panel"><h2 style="font-size:19px">Profil</h2><p style="margin:0 0 10px">Angemeldet als <b>${esc(meName || S.email)}</b></p>
+    <div class="row"><button class="btn small" type="button" data-act="setup">Name ändern</button><button class="btn small danger ghost" type="button" data-act="logout">Abmelden</button></div></section>`;
+}
+
+/* ---------- memories: map + recap ---------- */
+function memSeg(active) {
+  return `<div class="seg"><a href="#erinnerungen" class="${active === "list" ? "on" : ""}">Liste</a><a href="#karte" class="${active === "map" ? "on" : ""}">Karte</a><a href="#rueckblick" class="${active === "recap" ? "on" : ""}">Rückblick</a></div>`;
+}
+function placeGroups(from, to) {
+  const t = todayStr(), groups = {};
+  const add = (x, href) => {
+    if (x.lat == null || !x.city) return;
+    const k = x.city.trim().toLowerCase();
+    (groups[k] = groups[k] || { city: x.city.trim(), lat: x.lat, lng: x.lng, items: [] }).items.push({ title: x.title || "Date", date: x.date, href });
+  };
+  S.dates.filter(d => d.date && d.date < t && (!from || d.date >= from) && (!to || d.date <= to)).forEach(d => add(d, "#d-" + d.id));
+  S.events.filter(e => e.type === "reise" && e.date && e.date < t && (!from || e.date >= from) && (!to || e.date <= to)).forEach(e => add(e, "#t-" + e.id));
+  return Object.values(groups).sort((a, b) => b.items.length - a.items.length);
+}
+function viewMap() {
+  const g = placeGroups(), n = g.reduce((a, x) => a + x.items.length, 0);
+  return memSeg("map") + `<div id="map" class="mapbox"></div>
+    <section class="section"><h2 style="font-size:21px">${g.length} ${g.length === 1 ? "Ort" : "Orte"}, ${n} ${n === 1 ? "Erinnerung" : "Erinnerungen"}</h2>
+    <div class="list" style="margin-top:10px">${g.length ? g.map(x => `<button class="crow" type="button" data-act="mapfocus" data-lat="${x.lat}" data-lng="${x.lng}"><span class="cdot" style="background:var(--accent)"></span><div><div class="t">${esc(x.city)}</div><div class="s">${x.items.length} ${x.items.length === 1 ? "Date" : "Dates"} · zuletzt ${esc(fmtShort(x.items.map(i => i.date).sort().pop()))}</div></div><span class="ctag" style="color:var(--accent)">Zeigen</span></button>`).join("") : '<p class="muted" style="margin:0">Sobald ein Date mit Stadt vorbei ist, erscheint es hier auf der Karte.</p>'}</div></section>`;
+}
+let mapObj = null, leafletLoading = null;
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (leafletLoading) return leafletLoading;
+  leafletLoading = new Promise((res, rej) => {
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(css);
+    const js = document.createElement("script"); js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; js.onload = res; js.onerror = rej; document.head.appendChild(js);
+  });
+  return leafletLoading;
+}
+async function initMap() {
+  const el = $("#map"); if (!el) return;
+  try { await loadLeaflet(); } catch (e) { el.innerHTML = '<p class="muted" style="padding:16px">Die Karte konnte nicht geladen werden.</p>'; return; }
+  if (!$("#map") || $("#map") !== el) return;
+  if (mapObj) { mapObj.remove(); mapObj = null; }
+  const g = placeGroups();
+  mapObj = L.map(el, { zoomControl: false, attributionControl: true }).setView([48.14, 11.4], 7);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(mapObj);
+  const pts = [];
+  g.forEach(x => {
+    const icon = L.divIcon({ className: "pinw", html: `<div class="pin"><div class="b">${esc(x.city)} · ${x.items.length}</div><div class="d"></div></div>`, iconSize: [0, 0] });
+    L.marker([x.lat, x.lng], { icon }).addTo(mapObj).bindPopup(x.items.sort((a, b) => b.date.localeCompare(a.date)).map(i => `<a href="${esc(i.href)}">${esc(i.title)}</a><br><small>${esc(fmtShort(i.date))}</small>`).join("<hr>"));
+    pts.push([x.lat, x.lng]);
+  });
+  if (pts.length > 1) mapObj.fitBounds(pts, { padding: [50, 50], maxZoom: 11 });
+  else if (pts.length === 1) mapObj.setView(pts[0], 10);
+}
+function recapYears() {
+  const start = parseDay(TOGETHER_SINCE), today = parseDay(todayStr()), out = [];
+  for (let i = 0; ; i++) {
+    const a = new Date(start); a.setFullYear(start.getFullYear() + i);
+    if (a > today) break;
+    const b = new Date(start); b.setFullYear(start.getFullYear() + i + 1); b.setDate(b.getDate() - 1);
+    out.push({ n: i + 1, from: dstr(a), to: dstr(b), done: b < today });
+  }
+  return out;
+}
+function viewRecap() {
+  const years = recapYears();
+  if (!years.length) return memSeg("recap") + '<p class="muted">Der Rückblick startet mit eurem ersten gemeinsamen Tag.</p>';
+  const idx = Math.min(S.recapIdx == null ? years.length - 1 : S.recapIdx, years.length - 1), y = years[idx];
+  const t = todayStr(), to = y.to < t ? y.to : t;
+  const ds = S.dates.filter(d => d.date && d.date >= y.from && d.date <= to && d.date <= t);
+  const ids = new Set(ds.map(d => d.id));
+  const ph = S.photos.filter(p => ids.has(p.dateId));
+  const places = placeGroups(y.from, to);
+  const cats = {}; ds.forEach(d => (d.stops || []).forEach(s => { cats[s.cat] = (cats[s.cat] || 0) + 1; }));
+  const fav = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
+  const months = []; const m0 = parseDay(y.from);
+  for (let i = 0; i < 12; i++) { const m = new Date(m0.getFullYear(), m0.getMonth() + i, 1); const key = dstr(m).slice(0, 7); months.push({ l: m.toLocaleDateString("de-DE", { month: "narrow" }), n: ds.filter(d => d.date.slice(0, 7) === key).length }); }
+  const maxN = Math.max(1, ...months.map(m => m.n));
+  const memo = ds.filter(d => d.memo).sort((a, b) => b.date.localeCompare(a.date))[0];
+  const pics = ph.filter(p => S.urls[p.path]); const pick = [];
+  for (let i = 0; i < Math.min(5, pics.length); i++) pick.push(pics[Math.floor(i * pics.length / Math.min(5, pics.length))]);
+  const title = y.n === 1 ? "Unser erstes Jahr" : `Unser ${y.n}. Jahr`;
+  return memSeg("recap") + (years.length > 1 ? `<div class="chips">${years.map((x, i) => `<button type="button" class="chipbtn${i === idx ? " on" : ""}" data-act="recapyear" data-i="${i}">Jahr ${x.n}</button>`).join("")}</div>` : "") +
+  `<div class="recap-hero"><div class="eyebrow">${esc(parseDay(y.from).toLocaleDateString("de-DE"))} – ${esc(parseDay(y.to).toLocaleDateString("de-DE"))}</div><h1>${title}</h1><p>${y.done ? `${ds.length} ${ds.length === 1 ? "Date" : "Dates"} in 365 Tagen` : `Bis heute: ${dayNo(t) - dayNo(y.from) + 1} Tage, ${ds.length} ${ds.length === 1 ? "Date" : "Dates"}`}</p></div>
+  <div class="stats" style="margin-top:12px"><div class="stat"><b>${ds.length}</b><span>Dates</span></div><div class="stat"><b>${ph.length}</b><span>Fotos</span></div><div class="stat"><b>${places.length}</b><span>${places.length === 1 ? "Ort" : "Orte"}</span></div><div class="stat"><b>${fav ? esc((CATS[fav[0]] || CATS.sonstiges).label) : "–"}</b><span>${fav ? `am liebsten, ${fav[1]} Mal` : "Lieblings-Art"}</span></div></div>
+  <section class="panel"><h2 style="font-size:19px">Dates pro Monat</h2><div class="bars">${months.map(m => `<i style="height:${Math.max(3, Math.round(m.n / maxN * 86))}px" title="${m.n}"></i>`).join("")}</div><div class="bl">${months.map(m => `<span>${esc(m.l)}</span>`).join("")}</div></section>
+  ${places.length ? `<section class="panel"><h2 style="font-size:19px">Unsere Orte</h2>${places.slice(0, 3).map((p, i) => `<div class="toprow"><b>${i + 1}</b><span>${esc(p.city)}</span><em>${p.items.length}×</em></div>`).join("")}</section>` : ""}
+  ${pick.length ? `<section class="panel"><h2 style="font-size:19px">Unsere Fotos</h2><div class="coll n${pick.length}">${pick.map(p => `<img src="${esc(S.urls[p.path])}" alt="" loading="lazy" data-act="zoom">`).join("")}</div></section>` : ""}
+  ${memo ? `<section class="panel"><h2 style="font-size:19px">Ein Moment</h2><p class="evnote" style="margin:0">${esc(memo.memo)}</p><p class="hint" style="margin:6px 0 0">${esc(memo.title || "Date")}, ${esc(fmtShort(memo.date))}</p></section>` : ""}`;
 }
 
 /* ---------- memories ---------- */
@@ -643,8 +838,8 @@ function viewMemories() {
   if (!S.loaded) return '<p class="muted">Lädt …</p>';
   const t = todayStr();
   const past = S.dates.filter(d => d.date && d.date < t).sort((a, b) => b.date.localeCompare(a.date));
-  if (!past.length) return '<div class="empty"><p>Hier landen unsere vergangenen Dates mit Fotos und Notizen.</p></div>';
-  return `<div class="list">${past.map(d => {
+  if (!past.length) return memSeg("list") + '<div class="empty"><p>Hier landen unsere vergangenen Dates mit Fotos und Notizen.</p></div>';
+  return memSeg("list") + `<div class="list">${past.map(d => {
     const ph = S.photos.filter(p => p.dateId === d.id).sort((a, b) => (a.at || 0) - (b.at || 0));
     const dt = parseDay(d.date);
     const thumbs = ph.filter(p => S.urls[p.path]).slice(0, 4).map(p => `<img src="${esc(S.urls[p.path])}" alt="" loading="lazy">`).join("");
@@ -932,6 +1127,19 @@ document.addEventListener("click", async e => {
   const act = b.dataset.act, d = S.dates.find(x => x.id === S.route.id);
   if (act === "logout") { await sb.auth.signOut(); S.phase = "login"; S.loaded = false; location.hash = ""; render(true); }
   else if (act === "retry") boot();
+  else if (act === "nudge") {
+    b.disabled = true; heartBurst(b);
+    if (await run(T("nudges").insert({ id: uid("n") }))) { S.nudges.unshift({ id: "local", by: S.me, at: Date.now() }); notify(myName() + " denkt an dich", "Einfach so.", "#", "nudge"); render(); }
+    else b.disabled = false;
+  }
+  else if (act === "pref") {
+    const k = b.dataset.k, base = S.prefs || { eve: true, hour: true, events: true, qday: true, nudge: true };
+    const next = { eve: base.eve !== false, hour: base.hour !== false, events: base.events !== false, qday: base.qday !== false, nudge: base.nudge !== false, user_id: S.me };
+    next[k] = !next[k]; S.prefs = next; render();
+    await run(T("prefs").upsert(next));
+  }
+  else if (act === "recapyear") { S.recapIdx = +b.dataset.i; render(); }
+  else if (act === "mapfocus") { if (mapObj) { mapObj.setView([+b.dataset.lat, +b.dataset.lng], 11); window.scrollTo({ top: 0, behavior: "smooth" }); } }
   else if (act === "calday") { S.calDay = b.dataset.day; render(); }
   else if (act === "calprev" || act === "calnext") {
     const [cy, cm] = S.calMonth.split("-").map(Number), nd = new Date(cy, cm - 1 + (act === "calnext" ? 1 : -1), 1);
@@ -1077,6 +1285,19 @@ document.addEventListener("submit", async e => {
       location.hash = "t-" + id;
     } else btn.disabled = false;
   }
+  if (f.id === "qform") {
+    const v = $("#q-ans").value.trim(); if (!v) { $("#q-ans").focus(); return; }
+    btn.disabled = true; const t = todayStr();
+    if (await run(T("answers").upsert({ id: t + "_" + S.me, qdate: t, body: v }))) {
+      S.answers = S.answers.filter(a => !(a.date === t && a.by === S.me)).concat([{ id: t + "_" + S.me, date: t, by: S.me, text: v, at: Date.now() }]);
+      notify(myName() + " hat die Frage des Tages beantwortet", "Antworte auch, dann seht ihr beide Antworten.", "#", "qday"); render();
+    } else btn.disabled = false;
+  }
+  if (f.id === "addqform") {
+    const v = $("#newq").value.trim(); if (!v) { $("#newq").focus(); return; }
+    const d = nextFreeQuestionDate();
+    if (await run(T("questions").insert({ id: uid("q"), body: v, for_date: d }))) { $("#newq").value = ""; toast("Deine Frage kommt am " + fmtShort(d) + " dran."); }
+  }
   if (f.id === "ideaform") {
     const t = $("#idea-text"), v = t.value.trim(); if (!v) { t.focus(); return; }
     if (await run(T("ideas").insert({ id: uid("i"), body: v, tag: $("#idea-tag").value }))) { t.value = ""; t.focus(); notify("Neue Idee von " + myName(), v, "#ideen"); }
@@ -1122,9 +1343,20 @@ function pushPanel() {
   return "";
 }
 function myName() { return (S.people[S.me] && S.people[S.me].name) || "Jemand"; }
-function notify(title, body, url) {
+function notify(title, body, url, type) {
   if (!sb) return;
-  sb.functions.invoke("notify", { body: { title, body, url } }).catch(e => console.error(e));
+  sb.functions.invoke("notify", { body: { title, body, url, type: type || "" } }).catch(e => console.error(e));
+}
+
+function heartBurst(btn) {
+  const r = btn.getBoundingClientRect();
+  for (let i = 0; i < 8; i++) {
+    const h = document.createElement("div"); h.className = "fly"; h.innerHTML = I.heartfill;
+    h.style.left = (r.left + r.width / 2 - 10 + (Math.random() * 40 - 20)) + "px"; h.style.top = (r.top + r.height / 2 - 10) + "px";
+    h.style.setProperty("--dx", (Math.random() * 80 - 40).toFixed(0) + "px"); h.style.animationDelay = (i * 70) + "ms";
+    document.body.appendChild(h); setTimeout(() => h.remove(), 1600);
+  }
+  btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop");
 }
 
 /* ---------- auto update ---------- */
