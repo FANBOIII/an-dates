@@ -414,13 +414,18 @@ button.toggle:first-of-type{border-top:0}
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .2s}
 .sw.on{background:#34C759}
 .sw.on::after{left:23px}
+
+/* v9: dark background reaches the bottom of the screen, spacing after heart button */
+html{background:none}
+body{min-height:100vh;min-height:100dvh}
+.think{margin-bottom:14px}
 </style>
 </head>
 <body>
 <div id="app" class="wrap"></div>
 <div id="layer"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<script src="config.js?v=9"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>
