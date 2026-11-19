@@ -210,13 +210,147 @@ input[type=time].in,input[type=date].in{-webkit-appearance:none;appearance:none;
 .legend span{display:inline-flex;align-items:center;gap:5px}
 .legend b{width:8px;height:8px;border-radius:50%}
 .evnote{font-family:var(--script);font-size:24px;line-height:1.2;margin-top:16px;color:#3E3538}
+
+/* ---- scene + themes ---- */
+.wrap{position:relative;z-index:1}
+.hero{position:absolute;left:0;right:0;top:0;height:330px;z-index:0;pointer-events:none;display:none;-webkit-mask-image:linear-gradient(#000 78%,transparent);mask-image:linear-gradient(#000 78%,transparent)}
+body.scene .hero{display:block}
+.ptl{position:fixed;inset:0;z-index:3;pointer-events:none;overflow:hidden;display:none}
+body.scene .ptl{display:block}
+.tabs{z-index:5}
+.pt{position:absolute;top:-40px;animation:fall var(--d) linear var(--dl) infinite;will-change:transform}
+.pt>*{animation:sway var(--s) ease-in-out var(--dl) infinite alternate}
+@keyframes fall{to{transform:translateY(calc(100vh + 80px))}}
+@keyframes sway{from{transform:translateX(-16px) rotate(-25deg)}to{transform:translateX(16px) rotate(30deg)}}
+.pt.snow>*{animation-name:swaysoft}
+@keyframes swaysoft{from{transform:translateX(-10px)}to{transform:translateX(10px)}}
+.pt.rain{transform:rotate(12deg)}
+.pt.rain>*{animation:none}
+.pt.confetti>*{animation:spin var(--s) linear var(--dl) infinite}
+@keyframes spin{to{transform:rotate3d(1,1,.3,720deg)}}
+.pt.bat{animation:fly var(--d) linear var(--dl) infinite}
+.pt.bat>*{animation:flap .22s ease-in-out infinite alternate}
+@keyframes fly{0%{transform:translate(-60px,0)}25%{transform:translate(25vw,-30px)}50%{transform:translate(50vw,10px)}75%{transform:translate(75vw,-20px)}100%{transform:translate(calc(100vw + 60px),0)}}
+@keyframes flap{to{transform:scaleY(.55)}}
+.pt.fog{animation:drift var(--d) ease-in-out var(--dl) infinite alternate}
+.pt.fog>*{animation:none}
+.fogb{width:160vw;height:140px;margin-left:-30vw;background:radial-gradient(ellipse at center,rgba(220,225,235,.08),rgba(220,225,235,0) 70%)}
+@keyframes drift{from{transform:translateX(-25vw)}to{transform:translateX(25vw)}}
+.hero .bob{animation:bob 4.5s ease-in-out infinite alternate}
+@keyframes bob{to{transform:translateY(-10px)}}
+.hero .tw,.invite .tw{animation:tw 1.6s ease-in-out infinite alternate}
+@keyframes tw{to{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.ptl{display:none!important}.hero .bob,.hero .tw,.invite .tw{animation:none}}
+.wxchip2{display:inline-flex;align-items:center;white-space:pre;background:rgba(255,255,255,.72);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;color:#2B2730}
+.wxchip2 b{font-variant-numeric:tabular-nums}
+.scene-space{height:118px}
+body.scene.bannerlow .hero{height:430px}
+body.scene.bannerlow .scene-space{height:185px}
+body.scene.bannertop .hero{height:470px;-webkit-mask-image:linear-gradient(#000 88%,transparent);mask-image:linear-gradient(#000 88%,transparent)}
+body.scene.bannertop .scene-space{height:170px}
+.bday.top{margin:14px 0 0}
+.bday.low{margin:-40px 0 14px}
+body.scene.garland .wrap{padding-top:calc(58px + env(safe-area-inset-top))}
+body.scene.darkhero .topbar h1{color:#fff;text-shadow:0 1px 10px rgba(0,0,0,.55)}
+body.scene.darkhero .topbar .who{color:#E8EEF8;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+body.scene.darkhero .topbar .who button{color:#fff;font-weight:600;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+.bday{background:linear-gradient(135deg,var(--accent),#B07CE0);color:#fff;border-radius:22px;padding:16px 18px;text-align:center;box-shadow:0 14px 30px -18px rgba(0,0,0,.5);position:relative}
+.bday .eyebrow{color:rgba(255,255,255,.8)}
+.bday .msg{font-family:var(--script);font-size:32px;line-height:1.1;margin-top:4px}
+/* palettes */
+body[data-th=winter]{--bg:#F1F5FA;--paper:#FFFFFF;--line:#DAE3EE;--accent:#A3305A;--accent-soft:#F6E1EA;--muted:#6B7486}
+body[data-th=winter] .together{background:linear-gradient(160deg,#22385C,#3F6293)}
+body[data-th=winter] .together .eyebrow,body[data-th=winter] .together .note{color:#CFE0F5}
+body[data-th=winter] .mono{background:linear-gradient(180deg,#3F6293,#22385C)}
+body[data-th=fruehling]{--bg:#F5F8EF;--paper:#FFFFFB;--line:#E0E8D3;--accent:#C2477A;--accent-soft:#FBE6EE;--muted:#6F7766}
+body[data-th=fruehling] .together{background:linear-gradient(160deg,#E897B6,#B8487A)}
+body[data-th=fruehling] .mono{background:linear-gradient(180deg,#7DB36A,#4F8A43)}
+body[data-th=sommer]{--bg:#FFF6EA;--paper:#FFFDF8;--line:#F1DFC4;--accent:#D9572F;--accent-soft:#FDE4D6;--muted:#857462}
+body[data-th=sommer] .together{background:linear-gradient(160deg,#F7A541,#E0603A)}
+body[data-th=sommer] .together .eyebrow,body[data-th=sommer] .together .note{color:#FFF1D6}
+body[data-th=sommer] .mono{background:linear-gradient(180deg,#F7A541,#E0603A)}
+body[data-th=herbst]{--bg:#F9F2E8;--paper:#FFFCF6;--line:#EAD9C3;--accent:#A3442A;--accent-soft:#F5E0D3;--muted:#7F6E60}
+body[data-th=herbst] .together{background:linear-gradient(160deg,#C9702F,#7D2E1E)}
+body[data-th=herbst] .together .eyebrow,body[data-th=herbst] .together .note{color:#FBDCC0}
+body[data-th=herbst] .mono{background:linear-gradient(180deg,#C9702F,#7D2E1E)}
+body[data-th=regen]{--bg:#EDF0F3;--paper:#FFFFFF;--line:#D9DFE6;--accent:#8E3A5C;--accent-soft:#EFE1E8;--muted:#68717C}
+body[data-th=regen] .together{background:linear-gradient(160deg,#5D6E84,#323E4E)}
+body[data-th=regen] .together .eyebrow,body[data-th=regen] .together .note{color:#D6E0EC}
+body[data-th=regen] .mono{background:linear-gradient(180deg,#5D6E84,#323E4E)}
+body[data-th=weihnachten]{--bg:#F7F2EA;--paper:#FFFDF8;--line:#EADFCF;--accent:#B3263A;--accent-soft:#F6E0E2;--muted:#7C6F64}
+body[data-th=weihnachten] .together{background:linear-gradient(160deg,#245E43,#123B2A)}
+body[data-th=weihnachten] .together .eyebrow,body[data-th=weihnachten] .together .note{color:#F2D58A}
+body[data-th=weihnachten] .mono{background:linear-gradient(180deg,#C8323B,#8E1C28)}
+body[data-th=weihnachten] .bday{background:linear-gradient(135deg,#B3263A,#7A1424)}
+body[data-th=geburtstag]{--bg:#FFF4F2;--paper:#FFFFFF;--line:#F3DCE3;--accent:#C2477A;--accent-soft:#FBE3EC;--muted:#86707A}
+body[data-th=geburtstag] .together{background:linear-gradient(160deg,#7A2E66,#3E1A3A)}
+body[data-th=geburtstag] .together .eyebrow,body[data-th=geburtstag] .together .note{color:#F7C6DD}
+body[data-th=geburtstag] .mono{background:linear-gradient(180deg,#E2557A,#B07CE0)}
+body[data-th=thanksgiving]{--bg:#FAF1E4;--paper:#FFFCF6;--line:#EBD7BB;--accent:#8C4A1C;--accent-soft:#F4E2CF;--muted:#80705F}
+body[data-th=thanksgiving] .together{background:linear-gradient(160deg,#B8742E,#6E3415)}
+body[data-th=thanksgiving] .together .eyebrow,body[data-th=thanksgiving] .together .note{color:#F8DDB8}
+body[data-th=thanksgiving] .mono{background:linear-gradient(180deg,#B8742E,#6E3415)}
+body[data-th=thanksgiving] .bday{background:linear-gradient(135deg,#C9702F,#8C4A1C)}
+body[data-th=ostern]{--bg:#F6F9F0;--paper:#FFFFFC;--line:#E2EAD5;--accent:#B8487A;--accent-soft:#FBE6EE;--muted:#6F7766}
+body[data-th=ostern] .together{background:linear-gradient(160deg,#9CCB7E,#4F8A43)}
+body[data-th=ostern] .together .eyebrow,body[data-th=ostern] .together .note{color:#F3FAE9}
+body[data-th=ostern] .mono{background:linear-gradient(180deg,#F4A9C0,#B8487A)}
+body[data-th=ostern] .bday{background:linear-gradient(135deg,#F4A9C0,#9CCB7E)}
+body[data-th=halloween]{--bg:#140F17;--paper:#1F1822;--line:#33283A;--ink:#F1E7DA;--accent:#F08A2E;--accent-soft:#3A2516;--muted:#A8998F}
+body[data-th=halloween] .together{background:linear-gradient(160deg,#4A2358,#1A0F20)}
+body[data-th=halloween] .together .eyebrow,body[data-th=halloween] .together .note{color:#F7B267}
+body[data-th=halloween] .mono{background:linear-gradient(180deg,#F08A2E,#9C3B12)}
+body[data-th=halloween] .bday{background:linear-gradient(135deg,#F08A2E,#6B2A8E)}
+body[data-th=prag]{--bg:#0C0C0F;--paper:#16161A;--line:#2A2A31;--ink:#E9E9EC;--accent:#C8102E;--accent-soft:#2A1216;--muted:#8E8E98}
+body[data-th=prag] .together{background:linear-gradient(160deg,#24242B,#0A0A0C);border:1px solid #2A2A31}
+body[data-th=prag] .together .eyebrow{color:#9A9AA6}
+body[data-th=prag] .together .note{color:#E05468}
+body[data-th=prag] .mono{background:linear-gradient(180deg,#2A2A31,#0A0A0C);border:1px solid #3A3A44}
+body[data-th=prag] .bday{background:linear-gradient(135deg,#1C1C22,#3A0C14);border:1px solid #3A3A44}
+body[data-th=prag] .bday .msg{font-family:var(--display);font-style:italic;letter-spacing:.02em}
+body[data-th=prag] .bday .eyebrow{letter-spacing:.32em}
+/* dark UI */
+body.dark{color-scheme:dark}
+body.dark .in{background:#1C1820;color:var(--ink);border-color:var(--line)}
+body.dark .wx{background:rgba(255,255,255,.06)}
+body.dark .stopedit,body.dark .iconbtn{background:var(--paper);color:var(--ink)}
+body.dark .chip.open{background:rgba(255,255,255,.08);color:var(--muted)}
+body.dark .invite .sub,body.dark label.f{color:var(--muted)}
+body.dark .stop .note,body.dark .evnote,body.dark .mem .memo{color:var(--ink)}
+body.dark .tabs{background:rgba(12,12,15,.92)}
+body.dark .banner{background:#2E2618;color:#F2D58A}
+body.dark .btn{color:var(--ink)}
+body.dark .btn.primary{color:#fff}
+body.dark .wxchip2{background:rgba(20,20,26,.6);color:#EEE}
+body.dark .invite{box-shadow:none}
+body.dark .photos figure{background:#222}
+body.dark .cd{color:var(--ink)}
+body.dark .chip.yes{background:#16301F}
+body.dark .chip.no{background:#3A1A1A}
+body.dark .chip.propose{background:#3A2E14}
+
+/* evening: dark but keeps the theme */
+body.evening[data-th=winter]{--bg:#10172A;--paper:#1A2238;--line:#2B3550;--accent:#F08BB0;--accent-soft:color-mix(in srgb,#F08BB0 18%,#1A2238);--ink:#F1ECF2;--muted:#A9A2AE}
+body.evening[data-th=fruehling]{--bg:#111A14;--paper:#1B261E;--line:#2C3B2F;--accent:#F29BBE;--accent-soft:color-mix(in srgb,#F29BBE 18%,#1B261E);--ink:#F1ECF2;--muted:#A9A2AE}
+body.evening[data-th=sommer]{--bg:#1B140F;--paper:#271E16;--line:#3D3024;--accent:#FF9A6E;--accent-soft:color-mix(in srgb,#FF9A6E 18%,#271E16);--ink:#F1ECF2;--muted:#A9A2AE}
+body.evening[data-th=herbst]{--bg:#1A120D;--paper:#261B14;--line:#3D2C20;--accent:#F0A070;--accent-soft:color-mix(in srgb,#F0A070 18%,#261B14);--ink:#F1ECF2;--muted:#A9A2AE}
+body.evening[data-th=regen]{--bg:#12161C;--paper:#1C222B;--line:#2E3642;--accent:#E58AB0;--accent-soft:color-mix(in srgb,#E58AB0 18%,#1C222B);--ink:#F1ECF2;--muted:#A9A2AE}
+body.evening[data-th=weihnachten]{--bg:#0E1913;--paper:#17251D;--line:#26392D;--accent:#F2707F;--accent-soft:color-mix(in srgb,#F2707F 18%,#17251D);--ink:#F1ECF2;--muted:#A9A2AE}
+body.evening[data-th=geburtstag]{--bg:#1C1219;--paper:#2A1A25;--line:#40283A;--accent:#F59BC0;--accent-soft:color-mix(in srgb,#F59BC0 18%,#2A1A25);--ink:#F1ECF2;--muted:#A9A2AE}
+body.evening[data-th=thanksgiving]{--bg:#1A130B;--paper:#271C12;--line:#3E2D1D;--accent:#F0AE6A;--accent-soft:color-mix(in srgb,#F0AE6A 18%,#271C12);--ink:#F1ECF2;--muted:#A9A2AE}
+body.evening[data-th=ostern]{--bg:#111A14;--paper:#1B261E;--line:#2C3B2F;--accent:#F29BBE;--accent-soft:color-mix(in srgb,#F29BBE 18%,#1B261E);--ink:#F1ECF2;--muted:#A9A2AE}
+body.evening .together{box-shadow:0 18px 40px -24px rgba(0,0,0,.8)}
+body.evening .bday{box-shadow:0 14px 30px -18px rgba(0,0,0,.8)}
+body.evening.scene .topbar h1{color:#fff;text-shadow:0 1px 10px rgba(0,0,0,.55)}
+body.evening.scene .topbar .who{color:#E8EEF8}
+body.evening.scene .topbar .who button{color:#fff;font-weight:600}
 </style>
 </head>
 <body>
 <div id="app" class="wrap"></div>
 <div id="layer"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=5"></script>
-<script src="app.js?v=5"></script>
+<script src="config.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
