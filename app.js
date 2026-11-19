@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_VERSION = 5;
+const APP_VERSION = 7;
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -93,12 +93,22 @@ const DECOR = {
   watermelon: () => `<g transform="rotate(-12 60 50)"><path d="M16 40 A44 44 0 0 0 104 40Z" fill="#E8505B"/><path d="M16 40 A44 44 0 0 0 104 40" fill="none" stroke="#3E8E4E" stroke-width="8"/><path d="M22 41 A38 38 0 0 0 98 41" fill="none" stroke="#CDE8B5" stroke-width="3"/>${[[42,52],[60,58],[78,52],[52,64],[68,64]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="2.2" ry="3.4" fill="#2B2B2B"/>`).join("")}<path d="M16 40 L104 40" stroke="#E8505B" stroke-width="2"/></g>`,
   leaf: () => `<path d="M60 8 C90 28 96 66 60 90 C24 66 30 28 60 8Z" fill="#D9772B" stroke="#B35A1C" stroke-width="2"/><path d="M60 16 L60 98 M60 40 L76 30 M60 40 L44 30 M60 58 L80 46 M60 58 L40 46 M60 74 L76 64 M60 74 L44 64" stroke="#B35A1C" stroke-width="2" stroke-linecap="round"/>`,
   pumpkin: () => `<path d="M60 30 C58 22 62 16 66 14" stroke="#5E7A2E" stroke-width="5" stroke-linecap="round" fill="none"/><path d="M66 22 C76 14 88 18 86 26 C78 28 72 26 66 22Z" fill="#5BAA5F"/><ellipse cx="42" cy="62" rx="20" ry="26" fill="#E8842F" stroke="#C2631F" stroke-width="2"/><ellipse cx="78" cy="62" rx="20" ry="26" fill="#E8842F" stroke="#C2631F" stroke-width="2"/><ellipse cx="60" cy="62" rx="18" ry="28" fill="#F0953C" stroke="#C2631F" stroke-width="2"/>`,
+  jackface: () => `<g transform="translate(60 92) scale(2.6)">${jack(0, 0, 1, true)}</g>`,
+  batd: () => `<g transform="translate(18 40) scale(2.3)">${bat(0, 0, 1, "#2A1B2E")}</g>`,
+  bunnyd: () => `<g transform="translate(40 96) scale(1.9)">${bunny(0, 0, 1)}</g>`,
+  eggd: () => `<g transform="translate(60 96) scale(4)">${egg(0, 0, 1, "#F7B6CC", "#fff")}</g>`,
+  spires: () => `<g fill="#2A2D38"><rect x="30" y="50" width="16" height="50"/><path d="M28 50 L38 6 L48 50Z"/><rect x="74" y="50" width="16" height="50"/><path d="M72 50 L82 6 L92 50Z"/><rect x="44" y="64" width="32" height="36"/><path d="M44 64 L60 46 L76 64Z"/></g><rect x="57" y="78" width="4" height="7" fill="#C8102E"/>`,
   acorn: () => `<path d="M60 22 L62 12" stroke="#6B4421" stroke-width="4" stroke-linecap="round"/><path d="M40 46 C40 76 60 92 60 92 C60 92 80 76 80 46Z" fill="#C88A4A" stroke="#9C6631" stroke-width="2"/><path d="M34 48 C34 26 86 26 86 48Z" fill="#8A5A2B" stroke="#6B4421" stroke-width="2"/><path d="M40 40 L80 40 M44 33 L76 33" stroke="#6B4421" stroke-width="1.5" opacity=".6"/>`
 };
-function decor(ds) {
-  const [, m, d] = (ds || "").split("-").map(Number);
+function decor(ds, prague) {
+  const [y, m, d] = (ds || "").split("-").map(Number);
   let set;
-  if ((m === 12 && d === 30) || (m === 2 && d >= 10 && d <= 16)) set = ["heart"];
+  const md = m * 100 + d;
+  if (prague) set = ["spires"];
+  else if (md === 1006 || (m === 12 && d === 30) || (m === 2 && d >= 10 && d <= 16)) set = ["heart"];
+  else if (md >= 1025 && md <= 1031) set = ["jackface", "batd"];
+  else if (y && ds === dstr(thanksgivingDay(y))) set = ["pumpkin", "leaf"];
+  else if (y && (() => { const e = easterSunday(y), a = new Date(e), b = new Date(e); a.setDate(e.getDate() - 2); b.setDate(e.getDate() + 1); return ds >= dstr(a) && ds <= dstr(b); })()) set = ["bunnyd", "eggd"];
   else if (m === 12) set = ["candycane", "angel", "star", "snowman"];
   else if (m === 1 || m === 2) set = ["snowman", "snowflake"];
   else if (m >= 3 && m <= 5) set = ["tulip", "daisy"];
@@ -130,6 +140,289 @@ function togetherBox() {
   const txt = parts.length > 1 ? parts.slice(0, -1).join(", ") + " und " + parts[parts.length - 1] : parts[0];
   return `<div class="together"><div class="eyebrow">Zusammen seit ${esc(start.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" }))}</div>
     <div class="big">${days.toLocaleString("de-DE")} ${days === 1 ? "Tag" : "Tage"}</div><div>${esc(txt)}</div><div class="note">${esc(note)}</div></div>`;
+}
+
+
+/* ---------- themes: season, weather, holidays, Prague ---------- */
+const FFB = { name: "Fürstenfeldbruck", lat: 48.178, lng: 11.255 };
+const WEATHER = { state: "none", at: 0 };
+let tseed = 7;
+const trnd = () => { tseed = (tseed * 9301 + 49297) % 233280; return tseed / 233280; };
+const TR = (a, b) => a + trnd() * (b - a);
+const dstr = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+function easterSunday(y) {
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3),
+    h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+    month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(y, month - 1, day);
+}
+function thanksgivingDay(y) { const first = new Date(y, 10, 1); return new Date(y, 10, 1 + (4 - first.getDay() + 7) % 7 + 21); }
+const PRAG_RE = /\b(prag|praha|prague)\b/i;
+function pragueText(x) { return [x.city, x.place, x.title, ...((x.stops || []).map(s => (s.place || "") + " " + (s.name || "")))].join(" "); }
+function isPrague(x) { return PRAG_RE.test(pragueText(x)); }
+function pragueToday(t) {
+  return S.dates.some(d => d.date === t && isPrague(d)) || S.events.some(e => e.date <= t && t <= (e.endDate && e.endDate > e.date ? e.endDate : e.date) && isPrague(e));
+}
+function seasonOf(m) { return m === 12 || m <= 2 ? "winter" : m <= 5 ? "fruehling" : m <= 8 ? "sommer" : "herbst"; }
+function pickTheme(t) {
+  const forced = new URLSearchParams(location.search).get("thema");
+  if (forced) return forced;
+  const [y, m, d] = t.split("-").map(Number), md = m * 100 + d;
+  if (md === 1006) return "geburtstag";
+  if (pragueToday(t)) return "prag";
+  if (md >= 1025 && md <= 1031) return "halloween";
+  if (t === dstr(thanksgivingDay(y))) return "thanksgiving";
+  if (md >= 1201 && md <= 1226) return "weihnachten";
+  const e = easterSunday(y), gf = new Date(e), em = new Date(e); gf.setDate(e.getDate() - 2); em.setDate(e.getDate() + 1);
+  if (t >= dstr(gf) && t <= dstr(em)) return "ostern";
+  return seasonOf(m);
+}
+function themeBanner(th, t) {
+  const [, m, d] = t.split("-").map(Number);
+  if (th === "geburtstag") return ["6. Oktober", "Alles Gute zum Geburtstag mein Alles!"];
+  if (th === "weihnachten") { if (d >= 24) return ["Weihnachten", "Frohe Weihnachten!"]; const left = 24 - d; return ["Advent", `Noch ${left} ${left === 1 ? "Tag" : "Tage"} bis Weihnachten`]; }
+  if (th === "halloween" && m === 10 && d === 31) return ["31. Oktober", "Happy Halloween!"];
+  if (th === "thanksgiving") return ["Thanksgiving", "Happy Thanksgiving!"];
+  if (th === "ostern") return ["Ostern", "Frohe Ostern!"];
+  if (th === "prag") return ["Heute: Prag", "Ein Abend in der goldenen Stadt"];
+  return null;
+}
+function wxKind(code) {
+  if (code == null) return "none";
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "schnee";
+  if (code >= 51) return "regen";
+  if (code >= 3) return "wolken";
+  return "sonne";
+}
+const WX_LABEL = { sonne: "sonnig", wolken: "bewölkt", regen: "Regen", schnee: "Schnee" };
+async function loadHomeWeather() {
+  if (Date.now() - WEATHER.at < 30 * 60000 && WEATHER.state === "ok") return;
+  try {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${FFB.lat}&longitude=${FFB.lng}&current=temperature_2m,weather_code,is_day&timezone=Europe%2FBerlin`;
+    const j = await (await fetch(u)).json(), c = j.current;
+    Object.assign(WEATHER, { state: "ok", at: Date.now(), temp: Math.round(c.temperature_2m), kind: wxKind(c.weather_code), night: c.is_day === 0 });
+  } catch (e) { WEATHER.state = "err"; }
+  if (S.route.name === "home") render();
+}
+
+/* scene drawing */
+function cloud(x, y, s, c, op) { return `<g transform="translate(${x} ${y}) scale(${s})" fill="${c}" opacity="${op || 1}"><ellipse rx="34" ry="16"/><ellipse cx="-22" cy="6" rx="22" ry="13"/><ellipse cx="24" cy="6" rx="24" ry="13"/><ellipse cx="4" cy="-10" rx="20" ry="14"/></g>`; }
+function pine(x, y, s, snow, lights) {
+  let g = `<g transform="translate(${x} ${y}) scale(${s})"><rect x="-3" y="-4" width="6" height="10" fill="#6B4421"/><path d="M0 -70 L22 -32 L12 -32 L28 -4 L-28 -4 L-12 -32 L-22 -32Z" fill="#2E6B4A"/>`;
+  if (snow) g += `<path d="M0 -70 L10 -52 L4 -54 L0 -48 L-4 -54 L-10 -52Z M-14 -32 L-6 -28 L0 -32 L6 -28 L14 -32 L0 -36Z" fill="#fff"/>`;
+  if (lights) {
+    const cols = ["#F2C14E", "#E2557A", "#7FB7F2"];
+    [[-8, -44], [6, -40], [-14, -18], [0, -22], [14, -14], [-4, -10], [10, -30]].forEach(([a, b], i) => { g += `<circle class="tw" style="animation-delay:${(i * .3).toFixed(1)}s" cx="${a}" cy="${b}" r="2.8" fill="${cols[i % 3]}"/>`; });
+    g += `<polygon points="0,-84 3,-75 12,-75 5,-70 8,-61 0,-66 -8,-61 -5,-70 -12,-75 -3,-75" fill="#F2C14E"/>`;
+  }
+  return g + "</g>";
+}
+function roundTree(x, y, s, crown, dots) {
+  let g = `<g transform="translate(${x} ${y}) scale(${s})"><rect x="-3" y="-20" width="6" height="22" fill="#7A5232"/><circle cy="-34" r="20" fill="${crown}"/><circle cx="-12" cy="-26" r="13" fill="${crown}"/><circle cx="12" cy="-26" r="13" fill="${crown}"/>`;
+  if (dots) for (let i = 0; i < 7; i++) g += `<circle cx="${TR(-20, 20).toFixed(1)}" cy="${TR(-48, -18).toFixed(1)}" r="3" fill="${dots}"/>`;
+  return g + "</g>";
+}
+function bareTree(x, y, s) {
+  return `<g transform="translate(${x} ${y}) scale(${s})" stroke="#0D0910" stroke-linecap="round" fill="none"><path d="M0 0 C2 -30 -4 -60 2 -90" stroke-width="9"/><path d="M1 -50 C14 -62 22 -66 34 -84 M30 -76 l10 -4 M0 -70 C-14 -80 -22 -96 -30 -104 M-20 -90 l-14 2 M2 -88 C6 -100 4 -108 10 -118" stroke-width="4"/></g>`;
+}
+function jack(x, y, s, glow) {
+  return `<g transform="translate(${x} ${y}) scale(${s})"><path d="M0 -24 C-1 -30 2 -34 6 -35" stroke="#4E6B2A" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <ellipse cx="-11" cy="-10" rx="13" ry="15" fill="#E8792B"/><ellipse cx="11" cy="-10" rx="13" ry="15" fill="#E8792B"/><ellipse cy="-10" rx="11" ry="16" fill="#F08A35"/>
+    ${glow ? `<g fill="#FFE08A" class="tw"><path d="M-12 -16 l5 -7 l5 7z M2 -16 l5 -7 l5 7z"/><path d="M-12 -4 l4 3 l4 -3 l4 3 l4 -3 l4 3 l4 -3 l-2 6 l-20 0z"/></g>` : ""}</g>`;
+}
+function bat(x, y, s, c) { return `<path transform="translate(${x} ${y}) scale(${s})" d="M0 6 Q6 -4 12 4 Q14 0 16 4 L18 1 L20 4 Q22 0 24 4 Q30 -4 36 6 Q30 4 26 8 Q22 6 18 10 Q14 6 10 8 Q6 4 0 6Z" fill="${c || "#120A16"}"/>`; }
+function tomb(x, y, s) { return `<g transform="translate(${x} ${y}) scale(${s})"><path d="M-12 0 L-12 -22 Q-12 -34 0 -34 Q12 -34 12 -22 L12 0Z" fill="#3A3140"/><path d="M-5 -22 h10 M0 -27 v12" stroke="#5A4E62" stroke-width="2"/></g>`; }
+function bunny(x, y, s) {
+  return `<g transform="translate(${x} ${y}) scale(${s})"><ellipse cx="0" cy="-16" rx="18" ry="15" fill="#F2ECE6" stroke="#CFC4BC" stroke-width="1.5"/><circle cx="-18" cy="-12" r="5" fill="#fff" stroke="#CFC4BC"/>
+    <ellipse cx="14" cy="-34" rx="5" ry="16" fill="#F2ECE6" stroke="#CFC4BC" stroke-width="1.5" transform="rotate(-12 14 -34)"/><ellipse cx="14" cy="-34" rx="2.2" ry="11" fill="#F5B8C8" transform="rotate(-12 14 -34)"/>
+    <ellipse cx="22" cy="-32" rx="5" ry="16" fill="#F2ECE6" stroke="#CFC4BC" stroke-width="1.5" transform="rotate(14 22 -32)"/><ellipse cx="22" cy="-32" rx="2.2" ry="11" fill="#F5B8C8" transform="rotate(14 22 -32)"/>
+    <circle cx="16" cy="-20" r="11" fill="#F2ECE6" stroke="#CFC4BC" stroke-width="1.5"/><circle cx="20" cy="-22" r="1.8" fill="#3A2F2F"/><circle cx="26" cy="-18" r="1.8" fill="#E88AA4"/></g>`;
+}
+function egg(x, y, s, c, c2) { return `<g transform="translate(${x} ${y}) scale(${s})"><ellipse cy="-10" rx="8" ry="10.5" fill="${c}"/><path d="M-7.5 -12 l3 -3 l3 3 l3 -3 l3 3 l3 -3 l2 2" stroke="${c2}" stroke-width="2" fill="none"/><circle cx="-3" cy="-4" r="1.5" fill="${c2}"/><circle cx="3" cy="-5" r="1.5" fill="${c2}"/></g>`; }
+function tulip(x, y, s, c) { return `<g transform="translate(${x} ${y}) scale(${s})"><path d="M0 0 V-22" stroke="#4E9E48" stroke-width="2.5"/><path d="M-7 -30 L-4 -24 L0 -32 L4 -24 L7 -30 C9 -20 5 -16 0 -16 C-5 -16 -9 -20 -7 -30Z" fill="${c}"/></g>`; }
+function balloon(x, y, c, s, delay) { return `<g class="bob" style="animation-delay:${delay}s"><g transform="translate(${x} ${y}) scale(${s})"><path d="M0 22 C-4 40 6 52 0 70" stroke="#9A8A90" stroke-width="1.2" fill="none"/><ellipse rx="16" ry="20" fill="${c}"/><path d="M-3 20 L3 20 L0 24Z" fill="${c}"/><ellipse cx="-6" cy="-7" rx="4" ry="6" fill="#fff" opacity=".35"/></g></g>`; }
+function garland(W, y, kind) {
+  let g = `<path d="M-10 ${y} Q${W / 4} ${y + 26} ${W / 2} ${y + 6} Q${(3 * W) / 4} ${y + 26} ${W + 10} ${y}" fill="none" stroke="${kind === "xmas" ? "#2E6B4A" : "#B98AA0"}" stroke-width="2.5"/>`;
+  const n = kind === "xmas" ? 16 : 13;
+  for (let i = 0; i < n; i++) {
+    const t = (i + .5) / n, x = -10 + t * (W + 20), half = t < .5 ? t * 2 : (t - .5) * 2, yy = y + 22 * (1 - Math.pow(2 * half - 1, 2));
+    if (kind === "xmas") {
+      const c = ["#F2C14E", "#E2557A", "#7FB7F2", "#7CD39A"][i % 4];
+      g += `<g class="tw" style="animation-delay:${(i % 5 * .35).toFixed(2)}s"><circle cx="${x.toFixed(1)}" cy="${(yy + 6).toFixed(1)}" r="9" fill="${c}" opacity=".3"/><ellipse cx="${x.toFixed(1)}" cy="${(yy + 6).toFixed(1)}" rx="4" ry="6" fill="${c}"/></g><rect x="${(x - 2.5).toFixed(1)}" y="${(yy - 1).toFixed(1)}" width="5" height="3" fill="#3A3A3A"/>`;
+    } else {
+      const c = ["#E2557A", "#F2C14E", "#7FB7F2", "#7CD39A", "#B07CE0"][i % 5];
+      g += `<path d="M${(x - 11).toFixed(1)} ${yy.toFixed(1)} L${(x + 11).toFixed(1)} ${yy.toFixed(1)} L${x.toFixed(1)} ${(yy + 24).toFixed(1)}Z" fill="${c}"/>`;
+    }
+  }
+  return g;
+}
+function pragueSkyline() {
+  let s = "", x = 0;
+  tseed = 21;
+  // back layer of roofs
+  while (x < 390) { const w = TR(14, 30), h = TR(18, 40); s += `<rect x="${x.toFixed(0)}" y="${(212 - h).toFixed(0)}" width="${w.toFixed(0)}" height="${h.toFixed(0)}" fill="#1E2029"/><path d="M${x.toFixed(0)} ${(212 - h).toFixed(0)} l${(w / 2).toFixed(0)} -10 l${(w / 2).toFixed(0)} 10Z" fill="#1E2029"/>`; x += w; }
+  // castle hill + cathedral (left)
+  s += `<path d="M0 214 L0 176 L40 172 L150 170 L170 176 L170 214Z" fill="#17181F"/>`;
+  s += `<rect x="70" y="128" width="54" height="46" fill="#17181F"/><path d="M70 128 L97 104 L124 128Z" fill="#17181F"/>`;
+  s += `<rect x="78" y="96" width="10" height="36" fill="#17181F"/><path d="M76 96 L83 62 L90 96Z" fill="#17181F"/><rect x="104" y="100" width="10" height="32" fill="#17181F"/><path d="M102 100 L109 70 L116 100Z" fill="#17181F"/>`;
+  s += `<rect x="128" y="112" width="14" height="60" fill="#17181F"/><path d="M126 112 L135 84 L144 112Z" fill="#17181F"/>`;
+  // twin towers (right)
+  s += `<rect x="262" y="120" width="16" height="92" fill="#15161C"/><rect x="292" y="120" width="16" height="92" fill="#15161C"/><rect x="270" y="150" width="30" height="62" fill="#15161C"/>`;
+  [[270, 120], [300, 120]].forEach(([cx, cy]) => { s += `<path d="M${cx - 10} ${cy} L${cx} ${cy - 40} L${cx + 10} ${cy}Z" fill="#15161C"/><path d="M${cx - 10} ${cy} l3 -12 l3 12 M${cx + 4} ${cy} l3 -12 l3 12" fill="#15161C" stroke="#15161C"/>`; });
+  // windows: a few warm lights, one red
+  [[96, 150, "#E9C77B"], [140, 140, "#E9C77B"], [282, 170, "#C8102E"], [46, 190, "#E9C77B"], [220, 196, "#E9C77B"], [350, 200, "#E9C77B"]].forEach(([a, b, c]) => { s += `<rect x="${a}" y="${b}" width="3" height="5" fill="${c}" opacity=".85"/>`; });
+  // river + bridge
+  s += `<rect x="0" y="214" width="390" height="86" fill="#0E0F14"/>`;
+  s += `<path d="M0 222 H390 V234 H0Z" fill="#191A21"/>`;
+  for (let i = 0; i < 8; i++) s += `<path d="M${10 + i * 50} 234 a20 16 0 0 1 40 0Z" fill="#0E0F14"/>`;
+  for (let i = 0; i < 6; i++) { const lx = 30 + i * 66; s += `<rect x="${lx}" y="206" width="2" height="16" fill="#26272F"/><circle class="tw" style="animation-delay:${(i * .5).toFixed(1)}s" cx="${lx + 1}" cy="205" r="7" fill="#F2D58A" opacity=".25"/><circle cx="${lx + 1}" cy="205" r="2" fill="#F2D58A"/>`; }
+  for (let i = 0; i < 14; i++) s += `<rect x="${TR(0, 370).toFixed(0)}" y="${TR(246, 292).toFixed(0)}" width="${TR(10, 40).toFixed(0)}" height="1.5" fill="#3A3D4C" opacity=".7"/>`;
+  return s;
+}
+const SKY = {
+  winter: ["#BCD3EC", "#EEF4FA"], fruehling: ["#BFE5F4", "#F4FBF1"], sommer: ["#86CFF2", "#FFF0CF"], herbst: ["#F0C18F", "#FBEBD9"],
+  regen: ["#7F8B9C", "#C8D0DA"], nacht: ["#14213D", "#3A5280"], geburtstag: ["#FBD3E0", "#FFF4EC"], halloween: ["#1B0F24", "#6B2A1E"],
+  thanksgiving: ["#F2B872", "#FCE9CF"], ostern: ["#C4E6F6", "#F6FBEF"], prag: ["#08080B", "#2A2D38"]
+};
+const HILLS = {
+  winter: ["#E4ECF5", "#FFFFFF"], fruehling: ["#9BD27F", "#C4E7A8"], sommer: ["#6DB85A", "#A6D97B"], herbst: ["#C9873E", "#E3B46A"],
+  weihnachten: ["#C9D6E8", "#EEF3FA"], geburtstag: ["#F4B3C9", "#FAD7E2"], halloween: ["#1E1424", "#2A1B2E"], thanksgiving: ["#C98A3E", "#E2B46A"], ostern: ["#8FCB72", "#B7E19C"]
+};
+function scene(th, wx) {
+  tseed = 11;
+  const W = 390, H = 300, kind = wx.kind || "none";
+  const night = th === "weihnachten" || th === "prag" || th === "halloween" || !!wx.night;
+  const dim = !!wx.night && !["prag", "halloween"].includes(th);
+  const skyKey = th === "prag" || th === "halloween" ? th : night ? "nacht" : th === "geburtstag" || th === "thanksgiving" || th === "ostern" ? th : kind === "regen" ? "regen" : th;
+  let nightSky = "";
+  const sky = SKY[skyKey] || SKY.herbst, hl = HILLS[th] || HILLS.herbst;
+  let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <linearGradient id="hsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient>
+    <radialGradient id="hglow"><stop offset="0" stop-color="#FFE7A3" stop-opacity=".9"/><stop offset="1" stop-color="#FFE7A3" stop-opacity="0"/></radialGradient>
+    <radialGradient id="hmoon"><stop offset="0" stop-color="#F7D27A" stop-opacity=".7"/><stop offset="1" stop-color="#F7D27A" stop-opacity="0"/></radialGradient></defs>
+    <rect width="${W}" height="${H}" fill="url(#hsky)"/>`;
+  if (th === "prag") {
+    for (let i = 0; i < 30; i++) s += `<circle cx="${TR(0, W).toFixed(0)}" cy="${TR(0, 120).toFixed(0)}" r="${TR(.5, 1.2).toFixed(1)}" fill="#fff" opacity="${TR(.2, .6).toFixed(2)}"/>`;
+    s += `<circle cx="300" cy="64" r="26" fill="#D9DCE4" opacity=".85"/>` + cloud(290, 78, 1.4, "#2A2D38", .85) + cloud(110, 50, 1.6, "#1C1E26", .9);
+    s += pragueSkyline();
+  } else if (th === "halloween") {
+    s += `<circle cx="300" cy="90" r="80" fill="url(#hmoon)"/><circle cx="300" cy="90" r="40" fill="#F7D27A"/><circle cx="288" cy="80" r="6" fill="#E9BE62" opacity=".6"/><circle cx="312" cy="102" r="8" fill="#E9BE62" opacity=".5"/>`;
+    s += bat(250, 60, .9) + bat(330, 120, .7) + bat(200, 96, .6);
+    s += `<path d="M0 214 C80 186 160 196 230 206 C300 216 340 194 390 198 L390 300 L0 300Z" fill="${hl[0]}"/>`;
+    s += bareTree(52, 214, 1) + tomb(160, 222, .9) + tomb(196, 228, .7);
+    s += `<path d="M0 244 C90 222 190 232 260 240 C330 248 360 232 390 234 L390 300 L0 300Z" fill="${hl[1]}"/>`;
+    s += jack(250, 262, 1.2, true) + jack(300, 268, .9, true) + jack(100, 272, .8, true);
+    s += `<ellipse cx="120" cy="250" rx="160" ry="14" fill="#fff" opacity=".06"/><ellipse cx="300" cy="262" rx="140" ry="12" fill="#fff" opacity=".07"/>`;
+  } else {
+    if (night) {
+      let ns = "";
+      for (let i = 0; i < 40; i++) ns += `<circle cx="${TR(0, W).toFixed(0)}" cy="${TR(60, 170).toFixed(0)}" r="${TR(.6, 1.6).toFixed(1)}" fill="#fff" opacity="${TR(.4, 1).toFixed(2)}"/>`;
+      ns += `<circle cx="200" cy="150" r="18" fill="#F6E7B4"/><circle cx="209" cy="144" r="16" fill="${sky[0]}"/>`;
+      if (dim) nightSky = ns; else s += ns;
+    } else if (kind === "sonne" || th === "geburtstag" || th === "ostern" || th === "thanksgiving" || kind === "none") {
+      s += `<circle cx="320" cy="${th === "thanksgiving" ? 150 : 90}" r="90" fill="url(#hglow)"/><circle cx="320" cy="${th === "thanksgiving" ? 150 : 90}" r="26" fill="#FFD25E"/>`;
+    }
+    if (th !== "weihnachten") {
+      if (kind === "wolken" || kind === "regen" || kind === "schnee") {
+        const c = night ? "#4A5570" : kind === "regen" ? "#6E7A8C" : "#FFFFFF";
+        s += cloud(80, 110, 1.3, c, .95) + cloud(250, 95, 1.6, c, .95) + cloud(370, 130, 1.1, c, .95);
+      } else if (!night) s += cloud(70, 120, .9, "#FFFFFF", .9) + cloud(200, 100, .7, "#FFFFFF", .9);
+    }
+    s += `<path d="M0 205 C70 170 140 180 210 196 C280 212 330 178 390 186 L390 300 L0 300Z" fill="${hl[0]}"/>`;
+    if (th === "sommer") s += `<path d="M0 236 C120 226 260 230 390 238 L390 252 C260 246 120 244 0 252Z" fill="#7CC7E8" opacity=".9"/>`;
+    s += `<path d="M0 240 C90 212 180 226 250 236 C320 246 360 226 390 228 L390 300 L0 300Z" fill="${hl[1]}"/>`;
+    if (th === "weihnachten") s += pine(70, 230, .9, true) + pine(118, 238, .7, true) + pine(300, 236, 1.2, true, true) + `<g transform="translate(220 262) scale(.9)"><circle cy="-14" r="14" fill="#fff" stroke="#C8D6E6"/><circle cy="-36" r="10" fill="#fff" stroke="#C8D6E6"/><rect x="-7" y="-56" width="14" height="10" fill="#2B2B2B"/><rect x="-11" y="-47" width="22" height="3" fill="#2B2B2B"/><path d="M0 -36 l9 2 l-9 1z" fill="#E8792B"/><path d="M-9 -28 Q0 -24 9 -28 L9 -25 Q0 -21 -9 -25Z" fill="#C8323B"/></g>`;
+    else if (th === "geburtstag") s += balloon(60, 150, "#E2557A", 1.1, 0) + balloon(95, 170, "#F2C14E", .9, 1) + balloon(300, 160, "#7FB7F2", 1.15, .5) + balloon(338, 180, "#B07CE0", .9, 1.5) + balloon(268, 190, "#7CD39A", .8, 2) + garland(W, 4, "bunting");
+    else if (th === "ostern") {
+      s += roundTree(60, 228, 1, "#7DBF6A", "#F7B6CC") + bunny(250, 268, 1.25);
+      [["#F7B6CC", "#fff"], ["#F2C14E", "#E2557A"], ["#7FB7F2", "#fff"], ["#B07CE0", "#F2C14E"], ["#7CD39A", "#fff"]].forEach(([a, b], i) => { s += egg(110 + i * 28 + (i > 2 ? 150 : 0), 280 - (i % 2) * 6, 1, a, b); });
+      for (let i = 0; i < 9; i++) s += tulip(TR(0, W), TR(276, 296), .9, ["#E2557A", "#F2C14E", "#B07CE0"][i % 3]);
+    } else if (th === "thanksgiving") {
+      s += roundTree(55, 230, 1.1, "#D9772B") + roundTree(340, 232, 1.2, "#C2531F");
+      for (let i = 0; i < 10; i++) { const x = 130 + i * 9; s += `<path d="M${x} 270 C${x - 2} 250 ${x + 3} 236 ${x + 1} 222" stroke="#C99A3E" stroke-width="2" fill="none"/><ellipse cx="${x + 1}" cy="222" rx="2.5" ry="7" fill="#E2B04A"/>`; }
+      s += jack(250, 272, 1.1, false) + jack(282, 278, .8, false);
+    } else if (th === "winter") s += pine(60, 228, .9, true) + pine(100, 236, .7, true) + pine(330, 230, 1, true);
+    else if (th === "fruehling") { s += roundTree(70, 226, 1, "#7DBF6A", "#F7B6CC") + roundTree(320, 232, 1.2, "#7DBF6A", "#FFFFFF"); for (let i = 0; i < 18; i++) s += `<circle cx="${TR(0, W).toFixed(0)}" cy="${TR(250, 295).toFixed(0)}" r="3" fill="${["#F7B6CC", "#FFFFFF", "#F2C14E"][i % 3]}"/>`; }
+    else if (th === "sommer") s += roundTree(50, 232, 1.1, "#4E9E48") + roundTree(340, 234, 1.3, "#4E9E48");
+    else s += roundTree(60, 230, 1.1, "#D9772B") + roundTree(110, 236, .8, "#C2531F") + roundTree(325, 232, 1.3, "#E2A23B");
+    if (dim) s += `<rect width="${W}" height="${H}" fill="#0B1430" opacity="${th === "weihnachten" ? ".28" : ".38"}"/>` + nightSky;
+    if (th === "weihnachten") s += garland(W, 4, "xmas");
+  }
+  return { svg: s + "</svg>", night, garland: th === "weihnachten" || th === "geburtstag" };
+}
+function particleSet(th, wx) {
+  const k = wx.kind, list = [];
+  if (th === "geburtstag") list.push(["confetti", 30]);
+  else if (th === "halloween") list.push(["bat", 5], ["fog", 3]);
+  else if (th === "prag") { list.push(["fog", 4]); if (k === "regen") list.push(["rain", 30]); if (k === "schnee") list.push(["snow", 25]); }
+  else {
+    if (k === "schnee" || th === "weihnachten") list.push(["snow", 36]);
+    if (k === "regen") list.push(["rain", 55]);
+    if (th === "herbst" || th === "thanksgiving") list.push(["leaf", k === "regen" ? 6 : 12]);
+    if ((th === "fruehling" || th === "ostern") && k !== "regen") list.push(["petal", 14]);
+  }
+  return list;
+}
+function particlesHTML(list) {
+  tseed = 3;
+  const one = {
+    snow: () => `<div style="width:${TR(4, 8).toFixed(0)}px;height:${TR(4, 8).toFixed(0)}px;border-radius:50%;background:#fff;box-shadow:0 0 3px rgba(120,150,190,.7)"></div>`,
+    rain: () => `<div style="width:2px;height:${TR(14, 22).toFixed(0)}px;border-radius:2px;background:rgba(90,110,140,.5)"></div>`,
+    leaf: () => `<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 2C19 7 20 15 12 22 4 15 5 7 12 2Z" fill="${["#D9772B", "#C2531F", "#E2A23B", "#9C3B22"][Math.floor(TR(0, 4))]}"/><path d="M12 5v16" stroke="#7A3A16"/></svg>`,
+    petal: () => `<svg width="16" height="12" viewBox="0 0 16 12"><ellipse cx="8" cy="6" rx="7" ry="4" fill="#F4B6CB"/></svg>`,
+    confetti: () => `<div style="width:7px;height:11px;border-radius:2px;background:${["#E2557A", "#F2C14E", "#7FB7F2", "#7CD39A", "#B07CE0"][Math.floor(TR(0, 5))]}"></div>`,
+    bat: () => `<svg width="40" height="14" viewBox="0 0 36 12">${bat(0, 0, 1, "#0D0910")}</svg>`,
+    fog: () => `<div class="fogb"></div>`
+  };
+  const speed = { snow: [9, 16], rain: [.7, 1.1], leaf: [9, 15], petal: [10, 16], confetti: [6, 10], bat: [12, 20], fog: [40, 70] };
+  let out = "";
+  list.forEach(([kind, n]) => {
+    for (let i = 0; i < n; i++) {
+      const d = TR(...speed[kind]);
+      const top = kind === "bat" ? TR(5, 60) : kind === "fog" ? TR(15, 85) : null;
+      out += `<div class="pt ${kind}" style="left:${kind === "bat" || kind === "fog" ? 0 : TR(0, 100).toFixed(1)}%;${top != null ? `top:${top.toFixed(0)}%;` : ""}--d:${d.toFixed(2)}s;--dl:-${TR(0, d).toFixed(2)}s;--s:${TR(2.5, 5).toFixed(2)}s">${one[kind]()}</div>`;
+    }
+  });
+  return out;
+}
+let themeKey = "";
+function applyTheme(isHome) {
+  const t = todayStr(), th = pickTheme(t);
+  const wx = WEATHER.state === "ok" ? WEATHER : { kind: "none" };
+  const pal = ["winter", "fruehling", "sommer", "herbst"].includes(th) && wx.kind === "regen" ? "regen" : th;
+  const b = document.body;
+  b.dataset.th = pal;
+  const forcedEve = new URLSearchParams(location.search).get("abend");
+  const evening = forcedEve != null ? forcedEve !== "0" : !!wx.night;
+  if (forcedEve != null) wx.night = evening;
+  const ev = evening && th !== "halloween" && th !== "prag";
+  b.classList.toggle("dark", th === "halloween" || th === "prag" || ev);
+  b.classList.toggle("evening", ev);
+  b.classList.toggle("scene", !!isHome);
+  const hb = !!themeBanner(th, t);
+  const lowB = th === "prag" || th === "geburtstag";
+  b.classList.toggle("bannerlow", hb && lowB);
+  b.classList.toggle("bannertop", hb && !lowB);
+  const key = th + "|" + wx.kind + "|" + (wx.night ? 1 : 0) + "|" + pal;
+  if (key !== themeKey) {
+    themeKey = key;
+    const sc = scene(th, wx);
+    let hero = $("#hero"); if (!hero) { hero = document.createElement("div"); hero.id = "hero"; hero.className = "hero"; b.prepend(hero); }
+    hero.innerHTML = sc.svg;
+    b.classList.toggle("darkhero", sc.night);
+    b.classList.toggle("garland", sc.garland);
+    let ptl = $("#ptl"); if (!ptl) { ptl = document.createElement("div"); ptl.id = "ptl"; ptl.className = "ptl"; ptl.setAttribute("aria-hidden", "true"); b.appendChild(ptl); }
+    ptl.innerHTML = particlesHTML(particleSet(th, wx));
+  }
+  return th;
+}
+function sceneTop(th) {
+  const t = todayStr(), bn = themeBanner(th, t);
+  const lbl = WEATHER.night && WEATHER.kind === "sonne" ? "klar" : (WX_LABEL[WEATHER.kind] || "");
+  const chip = WEATHER.state === "ok" ? `<div class="wxchip2">${esc(FFB.name)} · <b>${WEATHER.temp}°</b> · ${esc(lbl)}</div>` : `<div class="wxchip2">${esc(FFB.name)}</div>`;
+  const low = th === "prag" || th === "geburtstag";
+  const banner = bn ? `<div class="bday ${low ? "low" : "top"}"><div class="eyebrow">${esc(bn[0])}</div><div class="msg">${esc(bn[1])}</div></div>` : "";
+  return low ? chip + `<div class="scene-space"></div>` + banner : chip + banner + `<div class="scene-space"></div>`;
 }
 
 /* ---------- weather (Open-Meteo, no key) ---------- */
@@ -261,12 +554,13 @@ window.addEventListener("hashchange", onRoute);
 /* ---------- render ---------- */
 function render(force) {
   const app = $("#app");
-  if (S.phase !== "app") { app.innerHTML = viewGate(); const t = $("#tabs"); if (t) t.remove(); return; }
+  if (S.phase !== "app") { document.body.classList.remove("scene"); app.innerHTML = viewGate(); const t = $("#tabs"); if (t) t.remove(); return; }
   if (!force && (S.route.name === "edit" || S.route.name === "eventedit")) return;
   const ae = document.activeElement, aid = ae && ae.id; let sel = null; try { sel = ae && ae.selectionStart; } catch (e) {}
   const keep = {};
   if (!force) document.querySelectorAll("#app input[id], #app textarea[id]").forEach(el => { if (el.type !== "file" && el.type !== "checkbox") keep[el.id] = el.value; });
   const v = S.route.name;
+  S.theme = applyTheme(v === "home");
   app.innerHTML = header() + (v === "date" ? viewDate() : v === "edit" ? viewEdit() : v === "ideas" ? viewIdeas() : v === "memories" ? viewMemories() : v === "calendar" ? viewCalendar() : v === "event" ? viewEvent() : v === "eventedit" ? viewEventEdit() : viewHome());
   Object.entries(keep).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
   if (aid) { const el = document.getElementById(aid); if (el) { el.focus(); try { if (sel != null) el.setSelectionRange(sel, sel); } catch (e) {} } }
@@ -327,7 +621,7 @@ function viewHome() {
   const sorted = [...S.dates].filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
   const up = sorted.filter(d => d.date >= t), past = sorted.filter(d => d.date < t).reverse();
   const next = up[0];
-  let h = pushPanel() + togetherBox();
+  let h = sceneTop(S.theme) + pushPanel() + togetherBox();
   if (next) {
     const first = (next.stops || [])[0];
     h += `<a class="next" href="#d-${esc(next.id)}"><div class="eyebrow">Nächstes Date</div><div class="big">${esc(countdown(next))}</div>
@@ -410,7 +704,7 @@ function viewEvent() {
   const when = e.endDate && e.endDate > e.date ? `${fmtLong(e.date)} bis ${fmtLong(e.endDate)}` : fmtLong(e.date);
   const time = e.time ? (e.timeEnd ? `${e.time}–${e.timeEnd} Uhr` : `${e.time} Uhr`) : "Ganztägig";
   return `<a class="back" href="#kalender">${I.left} Kalender</a>
-  <article class="invite">${decor(e.date)}
+  <article class="invite">${decor(e.date, isPrague(e))}
     <div class="eyebrow" style="color:${ty.color}">${ty.label}</div>
     <h1>${esc(e.title || ty.label)}</h1>
     <div class="sub">${esc(when)}</div>
@@ -499,7 +793,7 @@ function viewDate() {
   } else rsvpBody += `<p class="muted" style="margin:0">Du hast eingeladen. Hier siehst du die Antwort.</p>`;
 
   return `<a class="back" href="${past ? "#erinnerungen" : "#"}">${I.left} ${past ? "Alle Erinnerungen" : "Alle Dates"}</a>
-  <article class="invite">${decor(d.date)}
+  <article class="invite">${decor(d.date, isPrague(d))}
     <div class="eyebrow">Du bist eingeladen</div>
     <h1>${esc(fmtLong(d.date))}</h1>
     <div class="sub">${esc(d.city || "")}${d.city && d.title ? " · " : ""}${esc(d.title || "")}</div>
@@ -858,7 +1152,11 @@ async function afterLogin(session) {
   if (!data) { S.phase = "notmember"; render(true); return; }
   S.phase = "app"; S.route = readRoute(); if (S.route.name === "edit") startDraft(S.route.id);
   render(true);
-  if (!subscribed) { subscribed = true; subscribe(); }
+  if (!subscribed) {
+    subscribed = true; subscribe();
+    loadHomeWeather(); setInterval(loadHomeWeather, 30 * 60000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) loadHomeWeather(); });
+  }
   await loadAll();
   await initPush(); render();
 }
