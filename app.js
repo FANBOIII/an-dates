@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_VERSION = 4;
+const APP_VERSION = 5;
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -58,6 +58,7 @@ const I = {
   up:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>',
   down:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
   x:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  right:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
   left:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>'
 };
 const CATS = {
@@ -67,6 +68,8 @@ const CATS = {
   konzert:{label:"Konzert",icon:"music",color:"#7B3FA0"}, aktivitaet:{label:"Aktivität",icon:"star",color:"#C2611F"},
   zuhause:{label:"Zuhause",icon:"home",color:"#9A6A1E"}, sonstiges:{label:"Sonstiges",icon:"heart",color:"#B8325E"}
 };
+const EVT = { termin:{label:"Termin",color:"#4B4FB8"}, geburtstag:{label:"Geburtstag",color:"#C2611F"}, reise:{label:"Reise",color:"#2F7A4F"}, schule:{label:"Schule/Arbeit",color:"#7B3FA0"}, sonstiges:{label:"Sonstiges",color:"#7C6F74"} };
+const DATE_COLOR = "#B8325E";
 const WX = { sonnig:{label:"Sonnig",icon:"sun"}, wolkig:{label:"Bewölkt",icon:"cloud"}, regen:{label:"Regen",icon:"rain"}, schnee:{label:"Schnee",icon:"snow"} };
 const RSVP = { open:"Noch offen", yes:"Zugesagt", no:"Abgesagt", propose:"Neue Uhrzeit vorgeschlagen" };
 const IDEA_TAGS = ["Essen","Aktivität","Ausflug","Zuhause","Reise","Sonstiges"];
@@ -164,7 +167,7 @@ async function loadWeather(d) {
     const j = await (await fetch(u)).json(); const x = j.daily;
     WXC[key] = { state: "ok", hi: Math.round(x.temperature_2m_max[0]), lo: Math.round(x.temperature_2m_min[0]), rain: x.precipitation_probability_max[0], code: x.weather_code[0], sunset: (x.sunset[0] || "").slice(11, 16) };
   } catch (e) { WXC[key] = { state: "err" }; }
-  if (S.route.name === "date") render();
+  if (S.route.name === "date" || S.route.name === "event") render();
 }
 
 /* ---------- state ---------- */
@@ -174,7 +177,8 @@ const sb = configured && window.supabase ? window.supabase.createClient(CFG.SUPA
 
 const S = {
   phase: "boot", email: "", me: null, slow: false, loaded: false,
-  dates: [], comments: [], photos: [], ideas: [], people: {}, urls: {},
+  dates: [], events: [], comments: [], photos: [], ideas: [], people: {}, urls: {},
+  calMonth: todayStr().slice(0, 7), calDay: todayStr(),
   route: { name: "home" }, draft: null, setup: false, err: ""
 };
 
@@ -207,7 +211,8 @@ async function loadAll() {
     ]);
     const bad = [d, c, p, i, pe].find(r => r.error);
     if (bad) throw bad.error;
-    S.dates = d.data.map(r => ({ ...(r.data || {}), id: r.id, createdBy: r.created_by }));
+    const rows = d.data.map(r => ({ ...(r.data || {}), id: r.id, createdBy: r.created_by }));
+    S.dates = rows.filter(x => x.kind !== "event"); S.events = rows.filter(x => x.kind === "event");
     S.comments = c.data.map(r => ({ id: r.id, dateId: r.date_id, by: r.author, text: r.body, at: Date.parse(r.created_at) }));
     S.photos = p.data.map(r => ({ id: r.id, dateId: r.date_id, path: r.path, by: r.author, at: Date.parse(r.created_at) }));
     S.ideas = i.data.map(r => ({ id: r.id, text: r.body, tag: r.tag, done: r.done, by: r.author, at: Date.parse(r.created_at) }));
@@ -219,6 +224,7 @@ async function loadAll() {
       (data || []).forEach(x => { if (x.signedUrl && x.path) S.urls[x.path] = x.signedUrl; });
     }
     if (S.route.name === "edit" && S.draftMissing) startDraft(S.route.id), render(true);
+    if (S.route.name === "eventedit" && S.draftMissing) startEventDraft(S.route.id), render(true);
   } catch (e) { console.error(e); S.slow = true; }
   clearTimeout(slowT); loading = false;
   render();
@@ -240,28 +246,33 @@ function readRoute() {
   const h = location.hash.slice(1);
   if (h === "ideen") return { name: "ideas" };
   if (h === "erinnerungen") return { name: "memories" };
+  if (h === "kalender") return { name: "calendar" };
+  if (h === "neuer-termin") return { name: "eventedit", id: null };
+  if (h.startsWith("termin-bearbeiten-")) return { name: "eventedit", id: h.slice(18) };
+  if (h.startsWith("t-")) return { name: "event", id: h.slice(2) };
   if (h === "neu") return { name: "edit", id: null };
   if (h.startsWith("bearbeiten-")) return { name: "edit", id: h.slice(11) };
   if (h.startsWith("d-")) return { name: "date", id: h.slice(2) };
   return { name: "home" };
 }
-function onRoute() { S.route = readRoute(); if (S.route.name === "edit") startDraft(S.route.id); render(true); window.scrollTo(0, 0); }
+function onRoute() { S.route = readRoute(); if (S.route.name === "edit") startDraft(S.route.id); if (S.route.name === "eventedit") startEventDraft(S.route.id); render(true); window.scrollTo(0, 0); }
 window.addEventListener("hashchange", onRoute);
 
 /* ---------- render ---------- */
 function render(force) {
   const app = $("#app");
   if (S.phase !== "app") { app.innerHTML = viewGate(); const t = $("#tabs"); if (t) t.remove(); return; }
-  if (!force && S.route.name === "edit") return;
+  if (!force && (S.route.name === "edit" || S.route.name === "eventedit")) return;
   const ae = document.activeElement, aid = ae && ae.id; let sel = null; try { sel = ae && ae.selectionStart; } catch (e) {}
   const keep = {};
   if (!force) document.querySelectorAll("#app input[id], #app textarea[id]").forEach(el => { if (el.type !== "file" && el.type !== "checkbox") keep[el.id] = el.value; });
   const v = S.route.name;
-  app.innerHTML = header() + (v === "date" ? viewDate() : v === "edit" ? viewEdit() : v === "ideas" ? viewIdeas() : v === "memories" ? viewMemories() : viewHome());
+  app.innerHTML = header() + (v === "date" ? viewDate() : v === "edit" ? viewEdit() : v === "ideas" ? viewIdeas() : v === "memories" ? viewMemories() : v === "calendar" ? viewCalendar() : v === "event" ? viewEvent() : v === "eventedit" ? viewEventEdit() : viewHome());
   Object.entries(keep).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
   if (aid) { const el = document.getElementById(aid); if (el) { el.focus(); try { if (sel != null) el.setSelectionRange(sel, sel); } catch (e) {} } }
   renderTabs(); renderSetup();
   if (v === "date") loadWeather(S.dates.find(x => x.id === S.route.id));
+  if (v === "event") loadWeather(S.events.find(x => x.id === S.route.id));
 }
 function viewGate() {
   const mono = '<span class="mono" aria-hidden="true">A<small>+</small>N</span>';
@@ -278,7 +289,7 @@ function viewGate() {
 function header() {
   const meName = S.me && S.people[S.me] ? esc(S.people[S.me].name) : "";
   const warn = S.slow ? '<div class="banner">Die Daten laden gerade nicht. Prüfe deine Internetverbindung. Was du siehst, ist eventuell nicht aktuell.</div>' : "";
-  return warn + `<header class="topbar"><div class="brand"><span class="mono" aria-hidden="true">A<small>+</small>N</span><h1>${S.route.name === "ideas" ? "Ideen" : S.route.name === "memories" ? "Erinnerungen" : "Unsere Dates"}</h1></div>
+  return warn + `<header class="topbar"><div class="brand"><span class="mono" aria-hidden="true">A<small>+</small>N</span><h1>${S.route.name === "ideas" ? "Ideen" : S.route.name === "memories" ? "Erinnerungen" : ["calendar", "event", "eventedit"].includes(S.route.name) ? "Kalender" : "Unsere Dates"}</h1></div>
     <div class="who">${meName ? `Hallo ${meName}<br>` : ""}<button type="button" data-act="setup">Name</button> · <button type="button" data-act="logout">Abmelden</button></div></header>`;
 }
 function renderTabs() {
@@ -288,7 +299,7 @@ function renderTabs() {
   const cur = v === "date" ? S.dates.find(x => x.id === S.route.id) : null;
   const pastDate = cur && cur.date < todayStr();
   el.innerHTML = `<nav aria-label="Navigation">
-    <a href="#" class="${v === "home" || (v === "date" && !pastDate) ? "on" : ""}">${I.heart}Dates</a>
+    <a href="#" class="${v === "home" || (v === "date" && !pastDate) || ["calendar", "event", "eventedit"].includes(v) ? "on" : ""}">${I.heart}Dates</a>
     <a href="#erinnerungen" class="${v === "memories" || pastDate ? "on" : ""}">${I.photo}Erinnerungen</a>
     <a href="#neu" class="plus ${v === "edit" ? "on" : ""}"><span class="p">${I.plus}</span>Neues Date</a>
     <a href="#ideen" class="${v === "ideas" ? "on" : ""}">${I.bulb}Ideen</a></nav>`;
@@ -326,6 +337,7 @@ function viewHome() {
   } else {
     h += `<div class="empty"><p>Gerade ist kein Date geplant.</p><a class="btn primary" href="#neu">${I.plus} Date planen</a></div>`;
   }
+  h += upcomingBox();
   if (up.length > 1) h += `<section class="section"><h2>Geplant</h2><div class="list">${up.slice(1).map(d => itemCard(d)).join("")}</div></section>`;
   const openIdeas = S.ideas.filter(i => !i.done).length;
   h += `<section class="section"><h2>Ideen</h2><p class="muted">${openIdeas ? `${openIdeas} offene ${openIdeas === 1 ? "Idee" : "Ideen"} auf unserer Liste.` : "Noch keine Ideen gesammelt."} <a href="#ideen">Zur Ideenliste</a></p></section>`;
@@ -347,6 +359,98 @@ function viewMemories() {
       <span class="chip open">${ph.length} ${ph.length === 1 ? "Foto" : "Fotos"}</span></div>
       ${thumbs ? `<div class="thumbs">${thumbs}</div>` : ""}${d.memo ? `<div class="memo">${esc(d.memo)}</div>` : ""}</a>`;
   }).join("")}</div>`;
+}
+
+/* ---------- calendar ---------- */
+function calItems() {
+  const firstTime = d => ((d.stops || []).find(s => s.time) || {}).time || "";
+  return [
+    ...S.dates.filter(d => d.date).map(d => ({ id: d.id, title: d.title || "Date", date: d.date, end: d.date, time: firstTime(d), color: DATE_COLOR, label: "Date", href: "#d-" + d.id })),
+    ...S.events.filter(e => e.date).map(e => { const ty = EVT[e.type] || EVT.termin; return { id: e.id, title: e.title || ty.label, date: e.date, end: e.endDate && e.endDate > e.date ? e.endDate : e.date, time: e.time || "", color: ty.color, label: ty.label, href: "#t-" + e.id }; })
+  ].sort((a, b) => (a.date + (a.time || "00:00")).localeCompare(b.date + (b.time || "00:00")));
+}
+function itemLine(x, tag) {
+  const dt = parseDay(x.date);
+  const when = dt.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "short" }) + (x.end !== x.date ? " – " + parseDay(x.end).toLocaleDateString("de-DE", { day: "numeric", month: "short" }) : "") + (x.time ? " · " + x.time + " Uhr" : "");
+  return `<${tag} class="crow"${tag === "a" ? ` href="${esc(x.href)}"` : ""}><span class="cdot" style="background:${x.color}"></span><div><div class="t">${esc(x.title)}</div><div class="s">${esc(when)}</div></div><span class="ctag" style="color:${x.color}">${esc(x.label)}</span></${tag}>`;
+}
+function upcomingBox() {
+  const t = todayStr(), up = calItems().filter(x => x.end >= t).slice(0, 4);
+  return `<a class="upc" href="#kalender"><div class="hd"><span class="eyebrow">Demnächst</span><span class="more">Kalender ${I.right}</span></div>
+    ${up.length ? up.map(x => itemLine(x, "div")).join("") : '<p class="muted" style="margin:4px 0 0">Nichts eingetragen. Tippe hier, um den Kalender zu öffnen.</p>'}</a>`;
+}
+function viewCalendar() {
+  if (!S.loaded) return '<p class="muted">Lädt …</p>';
+  const [y, m] = S.calMonth.split("-").map(Number);
+  const first = new Date(y, m - 1, 1), offset = (first.getDay() + 6) % 7, daysIn = new Date(y, m, 0).getDate();
+  const items = calItems(), t = todayStr();
+  let cells = "";
+  for (let i = 0; i < offset; i++) cells += '<div class="cd empty"></div>';
+  for (let d = 1; d <= daysIn; d++) {
+    const ds = `${y}-${pad(m)}-${pad(d)}`, its = items.filter(x => x.date <= ds && ds <= x.end);
+    cells += `<button type="button" class="cd${ds === t ? " today" : ""}${ds === S.calDay ? " sel" : ""}" data-act="calday" data-day="${ds}" aria-label="${esc(fmtLong(ds))}${its.length ? ", " + its.length + " Einträge" : ""}"><span>${d}</span><i>${its.slice(0, 3).map(x => `<b style="background:${x.color}"></b>`).join("")}</i></button>`;
+  }
+  const mStart = `${y}-${pad(m)}-01`, mEnd = `${y}-${pad(m)}-${pad(daysIn)}`;
+  const dayItems = items.filter(x => x.date <= S.calDay && S.calDay <= x.end);
+  const monthItems = items.filter(x => x.end >= mStart && x.date <= mEnd);
+  const monthName = first.toLocaleDateString("de-DE", { month: "long" });
+  return `<a class="back" href="#">${I.left} Startseite</a>
+  <div class="calhead"><button class="iconbtn" type="button" data-act="calprev" aria-label="Vorheriger Monat">${I.left}</button><h2>${esc(monthName)} ${y}</h2><button class="iconbtn" type="button" data-act="calnext" aria-label="Nächster Monat">${I.right}</button></div>
+  <div class="calgrid">${["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map(w => `<div class="wd">${w}</div>`).join("")}${cells}</div>
+  <div class="legend"><span><b style="background:${DATE_COLOR}"></b>Date</span>${Object.values(EVT).map(e => `<span><b style="background:${e.color}"></b>${e.label}</span>`).join("")}</div>
+  <section class="section"><div class="row" style="justify-content:space-between"><h2 style="font-size:21px">${esc(fmtLong(S.calDay))}</h2><button class="btn small primary" type="button" data-act="newevent">${I.plus} Termin</button></div>
+    <div class="list" style="margin-top:10px">${dayItems.length ? dayItems.map(x => itemLine(x, "a")).join("") : '<p class="muted" style="margin:0">An diesem Tag ist nichts eingetragen.</p>'}</div></section>
+  <section class="section"><h2 style="font-size:21px">Im ${esc(monthName)}</h2>
+    <div class="list" style="margin-top:10px">${monthItems.length ? monthItems.map(x => itemLine(x, "a")).join("") : '<p class="muted" style="margin:0">In diesem Monat steht noch nichts an.</p>'}</div></section>`;
+}
+function viewEvent() {
+  const e = S.events.find(x => x.id === S.route.id);
+  if (!e) return S.loaded ? `<a class="back" href="#kalender">${I.left} Kalender</a><p class="muted">Diesen Termin gibt es nicht mehr.</p>` : '<p class="muted">Lädt …</p>';
+  const ty = EVT[e.type] || EVT.termin;
+  const when = e.endDate && e.endDate > e.date ? `${fmtLong(e.date)} bis ${fmtLong(e.endDate)}` : fmtLong(e.date);
+  const time = e.time ? (e.timeEnd ? `${e.time}–${e.timeEnd} Uhr` : `${e.time} Uhr`) : "Ganztägig";
+  return `<a class="back" href="#kalender">${I.left} Kalender</a>
+  <article class="invite">${decor(e.date)}
+    <div class="eyebrow" style="color:${ty.color}">${ty.label}</div>
+    <h1>${esc(e.title || ty.label)}</h1>
+    <div class="sub">${esc(when)}</div>
+    <div class="sub" style="margin-top:2px">${esc(time)}${e.city ? " · " + esc(e.city) : ""}</div>
+    <div style="height:16px"></div>
+    ${weatherBox(e)}
+    ${e.place ? `<div class="place" style="margin-top:16px">${esc(e.place)}</div><details class="route"><summary>${I.nav} Route</summary><div class="opts">${mapsLinks(e.place)}</div></details>` : ""}
+    ${e.note ? `<div class="evnote">${esc(e.note)}</div>` : ""}
+    <div class="muted" style="font-size:13px;margin-top:18px">Eingetragen von ${esc(personName(e.createdBy))}</div>
+  </article>
+  <div class="row" style="margin-top:20px"><a class="btn" href="#termin-bearbeiten-${esc(e.id)}">Bearbeiten</a><button class="btn danger ghost" type="button" data-act="delevent">Termin löschen</button></div>`;
+}
+function startEventDraft(id) {
+  const e = id ? S.events.find(x => x.id === id) : null;
+  S.draftMissing = !!id && !e;
+  S.edraft = e ? JSON.parse(JSON.stringify(e)) : { id: null, type: "termin", title: "", date: S.prefillDate || todayStr(), endDate: "", time: "", timeEnd: "", city: "München", place: "", note: "" };
+  S.prefillDate = "";
+}
+function viewEventEdit() {
+  if (S.draftMissing) return S.loaded ? '<p class="muted">Diesen Termin gibt es nicht mehr.</p>' : '<p class="muted">Lädt …</p>';
+  const e = S.edraft, back = e.id ? "#t-" + esc(e.id) : "#kalender";
+  return `<a class="back" href="${back}">${I.left} Abbrechen</a>
+  <h2 style="font-size:28px;margin-bottom:16px">${e.id ? "Termin bearbeiten" : "Neuer Termin"}</h2>
+  <form class="form" id="eventform" novalidate>
+    <label class="f" for="ev-title">Was? <input id="ev-title" class="in" data-e="title" value="${esc(e.title)}" placeholder="z. B. Geburtstag von Oma" maxlength="120" required></label>
+    <label class="f" for="ev-type">Art <select id="ev-type" class="in" data-e="type">${Object.entries(EVT).map(([k, x]) => opt(k, x.label, e.type)).join("")}</select></label>
+    <div class="grid2">
+      <label class="f" for="ev-date">Datum <span class="hint">Beginn</span><input id="ev-date" class="in" type="date" data-e="date" value="${esc(e.date)}" required></label>
+      <label class="f" for="ev-end">Bis <span class="hint">optional</span><input id="ev-end" class="in" type="date" data-e="endDate" value="${esc(e.endDate || "")}"></label>
+    </div>
+    <div class="grid2">
+      <label class="f" for="ev-time">Uhrzeit <span class="hint">leer = ganztägig</span><input id="ev-time" class="in" type="time" data-e="time" value="${esc(e.time || "")}"></label>
+      <label class="f" for="ev-time2">Ende <span class="hint">optional</span><input id="ev-time2" class="in" type="time" data-e="timeEnd" value="${esc(e.timeEnd || "")}"></label>
+    </div>
+    <label class="f" for="ev-city">Stadt <span class="hint">für Wetter und Sonnenuntergang</span><input id="ev-city" class="in" data-e="city" value="${esc(e.city || "")}" list="citylist2" maxlength="60"></label>
+    <datalist id="citylist2">${Object.keys(CITIES).map(c => `<option value="${esc(c)}"></option>`).join("")}</datalist>
+    <label class="f" for="ev-place">Wo? <span class="hint">Adresse, Name mit Stadt, oder ein Link aus Google Maps bzw. Apple Karten</span><input id="ev-place" class="in" data-e="place" value="${esc(e.place || "")}" placeholder="z. B. Marienplatz, München"></label>
+    <label class="f" for="ev-note">Notiz <textarea id="ev-note" class="in" data-e="note" maxlength="1000" placeholder="z. B. Geschenk nicht vergessen">${esc(e.note || "")}</textarea></label>
+    <div class="row" style="margin-top:8px"><button class="btn primary" type="submit">Termin speichern</button><a class="btn ghost" href="${back}">Abbrechen</a></div>
+  </form>`;
 }
 
 /* ---------- invitation ---------- */
@@ -534,6 +638,16 @@ document.addEventListener("click", async e => {
   const act = b.dataset.act, d = S.dates.find(x => x.id === S.route.id);
   if (act === "logout") { await sb.auth.signOut(); S.phase = "login"; S.loaded = false; location.hash = ""; render(true); }
   else if (act === "retry") boot();
+  else if (act === "calday") { S.calDay = b.dataset.day; render(); }
+  else if (act === "calprev" || act === "calnext") {
+    const [cy, cm] = S.calMonth.split("-").map(Number), nd = new Date(cy, cm - 1 + (act === "calnext" ? 1 : -1), 1);
+    S.calMonth = nd.getFullYear() + "-" + pad(nd.getMonth() + 1); render();
+  }
+  else if (act === "newevent") { S.prefillDate = S.calDay; location.hash = "neuer-termin"; }
+  else if (act === "delevent") {
+    const ev = S.events.find(x => x.id === S.route.id);
+    if (ev && await confirmBox("Diesen Termin löschen?", "Löschen")) { if (await run(T("dates").delete().eq("id", ev.id))) location.hash = "kalender"; }
+  }
   else if (act === "enablepush") enablePush(b);
   else if (act === "backlogin") { S.phase = "login"; render(true); }
   else if (act === "setup") { S.setup = true; renderSetup(); }
@@ -651,6 +765,23 @@ document.addEventListener("submit", async e => {
       location.hash = "d-" + id;
     }
     else btn.disabled = false;
+  }
+  if (f.id === "eventform") {
+    const e = S.edraft;
+    document.querySelectorAll("#eventform [data-e]").forEach(el => { e[el.dataset.e] = el.value; });
+    if (!e.title.trim()) { toast("Bitte eintragen, was ansteht."); $("#ev-title").focus(); return; }
+    if (!e.date) { toast("Bitte ein Datum wählen."); $("#ev-date").focus(); return; }
+    btn.disabled = true;
+    const id = e.id || uid("e"), orig = S.events.find(x => x.id === id), city = (e.city || "").trim();
+    let lat = orig && orig.city === city ? orig.lat : null, lng = orig && orig.city === city ? orig.lng : null;
+    if (city && lat == null) { const g = await geocode(city); if (g) { lat = g.lat; lng = g.lng; } }
+    const data = { kind: "event", type: e.type || "termin", title: e.title.trim(), date: e.date, endDate: e.endDate && e.endDate > e.date ? e.endDate : "",
+      time: e.time || "", timeEnd: e.time ? (e.timeEnd || "") : "", city, lat, lng, place: (e.place || "").trim(), note: (e.note || "").trim() };
+    if (await run(T("dates").upsert({ id, data }))) {
+      notify(myName() + (orig ? " hat einen Termin geändert" : " hat einen Termin eingetragen"), data.title + " · " + fmtLong(data.date), "#t-" + id);
+      S.calDay = data.date; S.calMonth = data.date.slice(0, 7);
+      location.hash = "t-" + id;
+    } else btn.disabled = false;
   }
   if (f.id === "ideaform") {
     const t = $("#idea-text"), v = t.value.trim(); if (!v) { t.focus(); return; }
