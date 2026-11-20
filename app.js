@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_VERSION = 9;
+const APP_VERSION = 10;
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -742,6 +742,8 @@ function viewSettings() {
   <h2 style="font-size:28px;margin-bottom:14px">Einstellungen</h2>
   <section class="panel" style="margin-top:0"><h2 style="font-size:19px">Mitteilungen</h2><p class="muted" style="margin:0 0 8px">${esc(pushState)}</p>
     ${S.push === "off" ? '<button class="btn primary small" type="button" data-act="enablepush">Mitteilungen aktivieren</button>' : ""}
+    ${S.push === "on" ? '<button class="btn small" type="button" data-act="testpush">Test-Mitteilung an mich</button>' : ""}
+    ${S.testResult ? `<div class="testres ${S.testResult.ok ? "ok" : "bad"}">${esc(S.testResult.text)}</div>` : ""}
     ${S.extrasOk ? PREF_ROWS.map(([k, t, s]) => `<button class="toggle" type="button" data-act="pref" data-k="${k}" aria-pressed="${prefOn(k)}"><span><span class="t">${t}</span><span class="s">${s}</span></span><span class="sw${prefOn(k) ? " on" : ""}"></span></button>`).join("") : '<p class="hint">Die Einstellungen erscheinen, sobald features.sql in Supabase ausgeführt ist.</p>'}
     <p class="hint" style="margin:10px 0 0">Jeder von euch stellt das für sich selbst ein.</p></section>
   <section class="panel"><h2 style="font-size:19px">Profil</h2><p style="margin:0 0 10px">Angemeldet als <b>${esc(meName || S.email)}</b></p>
@@ -1127,6 +1129,22 @@ document.addEventListener("click", async e => {
   const act = b.dataset.act, d = S.dates.find(x => x.id === S.route.id);
   if (act === "logout") { await sb.auth.signOut(); S.phase = "login"; S.loaded = false; location.hash = ""; render(true); }
   else if (act === "retry") boot();
+  else if (act === "testpush") {
+    b.disabled = true; S.testResult = { ok: true, text: "Wird gesendet …" }; render();
+    try {
+      const { data, error } = await sb.functions.invoke("notify", { body: { title: "Test von A+N", body: "Wenn du das liest, funktionieren die Mitteilungen.", url: "#einstellungen", type: "test" } });
+      if (error) {
+        let msg = error.message || "Unbekannter Fehler";
+        try { const j = await error.context.json(); msg = (j.error || msg) + (j.step ? " (Schritt: " + j.step + ")" : ""); } catch (e2) {}
+        S.testResult = { ok: false, text: "Fehler: " + msg };
+      } else if (data && data.devices === 0) {
+        S.testResult = { ok: false, text: "Für dieses Konto ist kein iPhone für Mitteilungen angemeldet. Tipp auf „Mitteilungen aktivieren“ bzw. schließe die App und aktiviere sie neu." };
+      } else if (data && data.failed && data.failed.length) {
+        S.testResult = { ok: false, text: `Gesendet: ${data.sent} von ${data.devices}. Fehler: ${data.failed.join(" | ")}` };
+      } else S.testResult = { ok: true, text: `Gesendet an ${data ? data.sent : "?"} Gerät(e). Die Mitteilung sollte gleich kommen.` };
+    } catch (e) { S.testResult = { ok: false, text: "Fehler: " + (e.message || e) }; }
+    render();
+  }
   else if (act === "nudge") {
     b.disabled = true; heartBurst(b);
     if (await run(T("nudges").insert({ id: uid("n") }))) { S.nudges.unshift({ id: "local", by: S.me, at: Date.now() }); notify(myName() + " denkt an dich", "Einfach so.", "#", "nudge"); render(); }
