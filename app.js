@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_VERSION = 10;
+const APP_VERSION = 12;
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -48,6 +48,7 @@ const I = {
   heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></svg>',
   photo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>',
   heartfill:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-8-4.9-8-11A4.6 4.6 0 0 1 12 7.3 4.6 4.6 0 0 1 20 10c0 6.1-8 11-8 11z"/></svg>',
+  starf:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>',
   bulb:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>',
   plus:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   nav:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L3 10.5l7.5 3 3 7.5z"/></svg>',
@@ -510,7 +511,7 @@ async function loadAll() {
     S.dates = rows.filter(x => x.kind !== "event"); S.events = rows.filter(x => x.kind === "event");
     S.comments = c.data.map(r => ({ id: r.id, dateId: r.date_id, by: r.author, text: r.body, at: Date.parse(r.created_at) }));
     S.photos = p.data.map(r => ({ id: r.id, dateId: r.date_id, path: r.path, by: r.author, at: Date.parse(r.created_at) }));
-    S.ideas = i.data.map(r => ({ id: r.id, text: r.body, tag: r.tag, done: r.done, by: r.author, at: Date.parse(r.created_at) }));
+    S.ideas = i.data.map(r => ({ id: r.id, text: r.body, tag: r.tag, done: r.done, by: r.author, at: Date.parse(r.created_at), approvedBy: r.approved_by || null, approved: !!r.approved_at, dateId: r.date_id || null }));
     const m = {}; pe.data.forEach(r => { m[r.id] = { name: r.name, initial: r.initial }; }); S.people = m;
     S.loaded = true; S.slow = false;
     const need = S.photos.map(x => x.path).filter(x => !S.urls[x]);
@@ -544,6 +545,7 @@ function readRoute() {
   if (h === "erinnerungen") return { name: "memories" };
   if (h === "karte") return { name: "map" };
   if (h === "rueckblick") return { name: "recap" };
+  if (h === "bewertung") return { name: "ratings" };
   if (h === "fragen") return { name: "questions" };
   if (h === "einstellungen") return { name: "settings" };
   if (h === "kalender") return { name: "calendar" };
@@ -555,7 +557,7 @@ function readRoute() {
   if (h.startsWith("d-")) return { name: "date", id: h.slice(2) };
   return { name: "home" };
 }
-function onRoute() { S.route = readRoute(); if (S.route.name === "edit") startDraft(S.route.id); if (S.route.name === "eventedit") startEventDraft(S.route.id); render(true); window.scrollTo(0, 0); }
+function onRoute() { S.route = readRoute(); if (S.route.name !== "edit") S.planIdeaId = null; if (S.route.name === "edit") startDraft(S.route.id); if (S.route.name === "eventedit") startEventDraft(S.route.id); render(true); window.scrollTo(0, 0); }
 window.addEventListener("hashchange", onRoute);
 
 /* ---------- render ---------- */
@@ -568,7 +570,7 @@ function render(force) {
   if (!force) document.querySelectorAll("#app input[id], #app textarea[id]").forEach(el => { if (el.type !== "file" && el.type !== "checkbox") keep[el.id] = el.value; });
   const v = S.route.name;
   S.theme = applyTheme(v === "home");
-  app.innerHTML = header() + (v === "date" ? viewDate() : v === "edit" ? viewEdit() : v === "ideas" ? viewIdeas() : v === "memories" ? viewMemories() : v === "map" ? viewMap() : v === "recap" ? viewRecap() : v === "questions" ? viewQuestions() : v === "settings" ? viewSettings() : v === "calendar" ? viewCalendar() : v === "event" ? viewEvent() : v === "eventedit" ? viewEventEdit() : viewHome());
+  app.innerHTML = header() + (v === "date" ? viewDate() : v === "edit" ? viewEdit() : v === "ideas" ? viewIdeas() : v === "memories" ? viewMemories() : v === "map" ? viewMap() : v === "recap" ? viewRecap() : v === "ratings" ? viewRatings() : v === "questions" ? viewQuestions() : v === "settings" ? viewSettings() : v === "calendar" ? viewCalendar() : v === "event" ? viewEvent() : v === "eventedit" ? viewEventEdit() : viewHome());
   Object.entries(keep).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
   if (aid) { const el = document.getElementById(aid); if (el) { el.focus(); try { if (sel != null) el.setSelectionRange(sel, sel); } catch (e) {} } }
   renderTabs(); renderSetup();
@@ -591,7 +593,7 @@ function viewGate() {
 function header() {
   const meName = S.me && S.people[S.me] ? esc(S.people[S.me].name) : "";
   const warn = S.slow ? '<div class="banner">Die Daten laden gerade nicht. Prüfe deine Internetverbindung. Was du siehst, ist eventuell nicht aktuell.</div>' : "";
-  return warn + `<header class="topbar"><div class="brand"><span class="mono" aria-hidden="true">A<small>+</small>N</span><h1>${S.route.name === "ideas" ? "Ideen" : ["memories", "map", "recap"].includes(S.route.name) ? "Erinnerungen" : S.route.name === "questions" ? "Fragen" : S.route.name === "settings" ? "Einstellungen" : ["calendar", "event", "eventedit"].includes(S.route.name) ? "Kalender" : "Unsere Dates"}</h1></div>
+  return warn + `<header class="topbar"><div class="brand"><span class="mono" aria-hidden="true">A<small>+</small>N</span><h1>${S.route.name === "ideas" ? "Ideen" : ["memories", "map", "recap", "ratings"].includes(S.route.name) ? "Erinnerungen" : S.route.name === "questions" ? "Fragen" : S.route.name === "settings" ? "Einstellungen" : ["calendar", "event", "eventedit"].includes(S.route.name) ? "Kalender" : "Unsere Dates"}</h1></div>
     <div class="who">${meName ? `Hallo ${meName}<br>` : ""}<a class="setlink" href="#einstellungen">Einstellungen</a></div></header>`;
 }
 function renderTabs() {
@@ -602,7 +604,7 @@ function renderTabs() {
   const pastDate = cur && cur.date < todayStr();
   el.innerHTML = `<nav aria-label="Navigation">
     <a href="#" class="${v === "home" || (v === "date" && !pastDate) || ["calendar", "event", "eventedit"].includes(v) ? "on" : ""}">${I.heart}Dates</a>
-    <a href="#erinnerungen" class="${["memories", "map", "recap"].includes(v) || pastDate ? "on" : ""}">${I.photo}Erinnerungen</a>
+    <a href="#erinnerungen" class="${["memories", "map", "recap", "ratings"].includes(v) || pastDate ? "on" : ""}">${I.photo}Erinnerungen</a>
     <a href="#neu" class="plus ${v === "edit" ? "on" : ""}"><span class="p">${I.plus}</span>Neues Date</a>
     <a href="#ideen" class="${v === "ideas" ? "on" : ""}">${I.bulb}Ideen</a></nav>`;
 }
@@ -629,7 +631,7 @@ function viewHome() {
   const sorted = [...S.dates].filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date));
   const up = sorted.filter(d => d.date >= t), past = sorted.filter(d => d.date < t).reverse();
   const next = up[0];
-  let h = sceneTop(S.theme) + pushPanel() + togetherBox() + thinkBox();
+  let h = sceneTop(S.theme) + pushPanel() + togetherBox() + thinkBox() + ideaPills();
   if (next) {
     const first = (next.stops || [])[0];
     h += `<a class="next" href="#d-${esc(next.id)}"><div class="eyebrow">Nächstes Date</div><div class="big">${esc(countdown(next))}</div>
@@ -641,8 +643,6 @@ function viewHome() {
   }
   h += qdayBox() + upcomingBox();
   if (up.length > 1) h += `<section class="section"><h2>Geplant</h2><div class="list">${up.slice(1).map(d => itemCard(d)).join("")}</div></section>`;
-  const openIdeas = S.ideas.filter(i => !i.done).length;
-  h += `<section class="section"><h2>Ideen</h2><p class="muted">${openIdeas ? `${openIdeas} offene ${openIdeas === 1 ? "Idee" : "Ideen"} auf unserer Liste.` : "Noch keine Ideen gesammelt."} <a href="#ideen">Zur Ideenliste</a></p></section>`;
   return h;
 }
 
@@ -712,12 +712,12 @@ function viewQuestions() {
   const queue = S.questions.filter(q => q.date > t).sort((a, b) => a.date.localeCompare(b.date));
   return `<a class="back" href="#">${I.left} Startseite</a>
   <h2 style="font-size:28px;margin-bottom:6px">Fragen</h2>
-  <form id="addqform" class="panel" style="margin-top:8px;display:grid;gap:10px"><label class="f" for="newq">Eigene Frage stellen <span class="hint">Sie kommt am nächsten freien Tag für euch beide dran.</span><input id="newq" class="in" maxlength="200" placeholder="z. B. Was war dein Highlight im Urlaub?"></label><div class="row"><button class="btn primary" type="submit">Frage hinzufügen</button></div></form>
+  <form id="addqform" class="panel" style="margin-top:8px;display:grid;gap:10px"><label class="f" for="newq">Eigene Frage stellen <span class="hint">Sie kommt am nächsten freien Tag für uns beide dran.</span><input id="newq" class="in" maxlength="200" placeholder="z. B. Was war dein Highlight im Urlaub?"></label><div class="row"><button class="btn primary" type="submit">Frage hinzufügen</button></div></form>
   ${queue.length ? `<section class="section"><h2 style="font-size:21px">Demnächst</h2><div class="list" style="margin-top:10px">${queue.map(q => `<div class="crow"><span class="cdot" style="background:var(--accent)"></span><div><div class="t">${esc(q.text)}</div><div class="s">${esc(fmtShort(q.date))} · von ${esc(personName(q.by))}</div></div><span></span></div>`).join("")}</div></section>` : ""}
   <section class="section"><h2 style="font-size:21px">Frühere Fragen</h2><div class="list" style="margin-top:10px">${past.length ? past.map(d => {
     const as = S.answers.filter(a => a.date === d);
     return `<div class="qold"><div class="s">${esc(fmtShort(d))} · Tag ${dayNo(d)}</div><div class="t">${esc(questionFor(d).text)}</div>${as.map(a => `<div class="ans"><b>${esc(a.by === S.me ? "Du" : personName(a.by))}</b><p>${esc(a.text)}</p></div>`).join("")}</div>`;
-  }).join("") : '<p class="muted" style="margin:0">Hier erscheinen eure Antworten der letzten 30 Tage.</p>'}</div></section>`;
+  }).join("") : '<p class="muted" style="margin:0">Hier erscheinen unsere Antworten der letzten 30 Tage.</p>'}</div></section>`;
 }
 function nextFreeQuestionDate() {
   let d = parseDay(todayStr()); d.setDate(d.getDate() + 1);
@@ -745,14 +745,14 @@ function viewSettings() {
     ${S.push === "on" ? '<button class="btn small" type="button" data-act="testpush">Test-Mitteilung an mich</button>' : ""}
     ${S.testResult ? `<div class="testres ${S.testResult.ok ? "ok" : "bad"}">${esc(S.testResult.text)}</div>` : ""}
     ${S.extrasOk ? PREF_ROWS.map(([k, t, s]) => `<button class="toggle" type="button" data-act="pref" data-k="${k}" aria-pressed="${prefOn(k)}"><span><span class="t">${t}</span><span class="s">${s}</span></span><span class="sw${prefOn(k) ? " on" : ""}"></span></button>`).join("") : '<p class="hint">Die Einstellungen erscheinen, sobald features.sql in Supabase ausgeführt ist.</p>'}
-    <p class="hint" style="margin:10px 0 0">Jeder von euch stellt das für sich selbst ein.</p></section>
+    <p class="hint" style="margin:10px 0 0">Jeder von uns stellt das für sich selbst ein.</p></section>
   <section class="panel"><h2 style="font-size:19px">Profil</h2><p style="margin:0 0 10px">Angemeldet als <b>${esc(meName || S.email)}</b></p>
     <div class="row"><button class="btn small" type="button" data-act="setup">Name ändern</button><button class="btn small danger ghost" type="button" data-act="logout">Abmelden</button></div></section>`;
 }
 
 /* ---------- memories: map + recap ---------- */
 function memSeg(active) {
-  return `<div class="seg"><a href="#erinnerungen" class="${active === "list" ? "on" : ""}">Liste</a><a href="#karte" class="${active === "map" ? "on" : ""}">Karte</a><a href="#rueckblick" class="${active === "recap" ? "on" : ""}">Rückblick</a></div>`;
+  return `<div class="seg"><a href="#erinnerungen" class="${active === "list" ? "on" : ""}">Liste</a><a href="#karte" class="${active === "map" ? "on" : ""}">Karte</a><a href="#bewertung" class="${active === "ratings" ? "on" : ""}">Bewertung</a><a href="#rueckblick" class="${active === "recap" ? "on" : ""}">Rückblick</a></div>`;
 }
 function placeGroups(from, to) {
   const t = todayStr(), groups = {};
@@ -810,7 +810,7 @@ function recapYears() {
 }
 function viewRecap() {
   const years = recapYears();
-  if (!years.length) return memSeg("recap") + '<p class="muted">Der Rückblick startet mit eurem ersten gemeinsamen Tag.</p>';
+  if (!years.length) return memSeg("recap") + '<p class="muted">Der Rückblick startet mit unserem ersten gemeinsamen Tag.</p>';
   const idx = Math.min(S.recapIdx == null ? years.length - 1 : S.recapIdx, years.length - 1), y = years[idx];
   const t = todayStr(), to = y.to < t ? y.to : t;
   const ds = S.dates.filter(d => d.date && d.date >= y.from && d.date <= to && d.date <= t);
@@ -832,7 +832,60 @@ function viewRecap() {
   <section class="panel"><h2 style="font-size:19px">Dates pro Monat</h2><div class="bars">${months.map(m => `<i style="height:${Math.max(3, Math.round(m.n / maxN * 86))}px" title="${m.n}"></i>`).join("")}</div><div class="bl">${months.map(m => `<span>${esc(m.l)}</span>`).join("")}</div></section>
   ${places.length ? `<section class="panel"><h2 style="font-size:19px">Unsere Orte</h2>${places.slice(0, 3).map((p, i) => `<div class="toprow"><b>${i + 1}</b><span>${esc(p.city)}</span><em>${p.items.length}×</em></div>`).join("")}</section>` : ""}
   ${pick.length ? `<section class="panel"><h2 style="font-size:19px">Unsere Fotos</h2><div class="coll n${pick.length}">${pick.map(p => `<img src="${esc(S.urls[p.path])}" alt="" loading="lazy" data-act="zoom">`).join("")}</div></section>` : ""}
+  ${(() => { const best = ds.filter(d => ratingAvg(d, "gesamt") != null).sort((a, b) => ratingAvg(b, "gesamt") - ratingAvg(a, "gesamt"))[0]; return best ? `<section class="panel"><h2 style="font-size:19px">Unser bestes Date</h2><a class="bestd" href="#d-${esc(best.id)}"><div><div class="t">${esc(best.title || "Date")}</div><div class="s">${esc(fmtShort(best.date))}${best.city ? " · " + esc(best.city) : ""}</div></div><div class="mstar">${starBar(ratingAvg(best, "gesamt"))}<span>${fmtScore(ratingAvg(best, "gesamt"))}</span></div></a></section>` : ""; })()}
   ${memo ? `<section class="panel"><h2 style="font-size:19px">Ein Moment</h2><p class="evnote" style="margin:0">${esc(memo.memo)}</p><p class="hint" style="margin:6px 0 0">${esc(memo.title || "Date")}, ${esc(fmtShort(memo.date))}</p></section>` : ""}`;
+}
+
+/* ---------- ratings ---------- */
+const RATE = [["aktivitaet", "Die Aktivität"], ["atmosphaere", "Atmosphäre"], ["spass", "Spaß"], ["romantik", "Romantik"], ["gesamt", "Das Date als Ganzes"]];
+const EFFORT_WORD = ["", "sehr entspannt", "entspannt", "mittel", "anstrengend", "sehr anstrengend"];
+const effortWord = v => v == null ? "" : EFFORT_WORD[Math.max(1, Math.min(5, Math.round(v)))];
+function effortBar(v) { return `<span class="ebar" role="img" aria-label="${effortWord(v)}">${[1, 2, 3, 4, 5].map(n => `<i class="${n <= Math.round(v || 0) ? "on" : ""}"></i>`).join("")}</span>`; }
+const RATE_SHORT = { gesamt: "Gesamt", aktivitaet: "Aktivität", atmosphaere: "Atmosphäre", spass: "Spaß", romantik: "Romantik", anstrengung: "Anstrengung" };
+function ratingAvg(d, k) {
+  const vals = Object.values(d.ratings || {}).map(r => r && r[k]).filter(v => v >= 1 && v <= 5);
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+}
+const fmtScore = v => v == null ? "–" : (Math.round(v * 10) / 10).toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+function starBar(v) {
+  const pct = Math.max(0, Math.min(100, (v || 0) / 5 * 100));
+  const row = [1, 2, 3, 4, 5].map(() => I.starf).join("");
+  return `<span class="sbar" role="img" aria-label="${fmtScore(v)} von 5 Sternen"><span class="sb0">${row}</span><span class="sb1" style="width:${pct.toFixed(0)}%">${row}</span></span>`;
+}
+function ratingBlock(d) {
+  if (!d.date || d.date > todayStr()) return "";
+  const other = otherPerson(), r = d.ratings || {}, mine = r[S.me] || {}, theirs = other ? (r[other] || {}) : {};
+  return `<div class="rate"><h3>Bewertung</h3><p class="hint" style="margin:0 0 4px">Jeder bewertet für sich. Nochmal auf dieselbe Stelle tippen löscht die Bewertung.</p>
+    ${RATE.map(([k, l]) => {
+      const m = mine[k] || 0, o = theirs[k] || 0, avg = ratingAvg(d, k);
+      return `<div class="rrow${k === "gesamt" ? " total" : ""}"><div class="rl"><span>${l}</span>${o || (m && avg != null) ? `<span class="rs">${o ? esc(personName(other)) + ": " + o + " · " : ""}Ø ${fmtScore(avg)}</span>` : ""}</div>
+        <div class="stars" role="radiogroup" aria-label="${l}">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="st${n <= m ? " on" : ""}" data-act="rate" data-k="${k}" data-n="${n}" role="radio" aria-checked="${n === m}" aria-label="${n} ${n === 1 ? "Stern" : "Sterne"}">${I.starf}</button>`).join("")}</div></div>`;
+    }).join("")}
+    ${(() => { const m = mine.anstrengung || 0, o = theirs.anstrengung || 0, avg = ratingAvg(d, "anstrengung");
+      return `<div class="effort"><div class="rl"><span>Wie anstrengend war es?</span><span class="rs">Zählt nicht zur Bewertung${o ? " · " + esc(personName(other)) + ": " + effortWord(o) : ""}${m && avg != null && o ? " · Ø " + effortWord(avg) : ""}</span></div>
+        <div class="escale" role="radiogroup" aria-label="Wie anstrengend">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="es${n === m ? " on" : ""}" data-act="rate" data-k="anstrengung" data-n="${n}" role="radio" aria-checked="${n === m}" aria-label="${EFFORT_WORD[n]}">${n}</button>`).join("")}</div>
+        <div class="elabels"><span>entspannt</span><span>${m ? esc(EFFORT_WORD[m]) : ""}</span><span>anstrengend</span></div></div>`; })()}
+    </div>`;
+}
+function viewRatings() {
+  if (!S.loaded) return memSeg("ratings") + '<p class="muted">Lädt …</p>';
+  const cat = S.rateCat || "gesamt", t = todayStr(), eff = cat === "anstrengung";
+  const past = S.dates.filter(d => d.date && d.date <= t);
+  const dir = eff && S.effortDir === "hard" ? -1 : 1;
+  const rated = past.filter(d => ratingAvg(d, cat) != null).sort((a, b) => (eff ? dir * (ratingAvg(a, cat) - ratingAvg(b, cat)) : ratingAvg(b, cat) - ratingAvg(a, cat)) || b.date.localeCompare(a.date));
+  const open = past.filter(d => !RATE.some(([k]) => ratingAvg(d, k) != null));
+  const order = ["gesamt", "aktivitaet", "atmosphaere", "spass", "romantik"];
+  const chip = k => `<button type="button" class="chipbtn${k === cat ? " on" : ""}" data-act="ratecat" data-k="${k}">${RATE_SHORT[k]}</button>`;
+  const hint = eff ? "Anstrengung zählt nicht zur Bewertung. Hier finden wir entspannte oder sportliche Dates."
+    : `Sortiert nach ${RATE_SHORT[cat]}, das beste oben. Der Wert ist der Durchschnitt aus unseren beiden Bewertungen.`;
+  const row = (d, i) => { const v = ratingAvg(d, cat); return eff
+    ? `<a class="rankrow" href="#d-${esc(d.id)}"><b class="rk neutral">${i + 1}</b><div><div class="t">${esc(d.title || "Date")}</div><div class="s">${esc(fmtShort(d.date))}${d.city ? " · " + esc(d.city) : ""}</div><div class="mstar">${effortBar(v)}<span>${esc(effortWord(v))}</span></div></div></a>`
+    : `<a class="rankrow" href="#d-${esc(d.id)}"><b class="rk">${i + 1}</b><div><div class="t">${esc(d.title || "Date")}</div><div class="s">${esc(fmtShort(d.date))}${d.city ? " · " + esc(d.city) : ""}</div><div class="mstar">${starBar(v)}<span>${fmtScore(v)}</span></div></div></a>`; };
+  return memSeg("ratings") + `<div class="chips">${order.map(chip).join("")}<span class="chipsep"></span>${chip("anstrengung")}</div>
+    ${eff ? `<div class="chips small"><button type="button" class="chipbtn${S.effortDir !== "hard" ? " on" : ""}" data-act="effortdir" data-v="easy">Entspannteste zuerst</button><button type="button" class="chipbtn${S.effortDir === "hard" ? " on" : ""}" data-act="effortdir" data-v="hard">Anstrengendste zuerst</button></div>` : ""}
+    <p class="hint" style="margin:0 0 10px">${hint}</p>
+    <div class="list">${rated.length ? rated.map(row).join("") : `<div class="empty"><p>Noch keine Angabe für ${RATE_SHORT[cat]}. Öffne ein vergangenes Date und bewerte es.</p></div>`}</div>
+    ${open.length ? `<section class="section"><h2 style="font-size:19px">Noch nicht bewertet</h2><div class="list" style="margin-top:10px">${open.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10).map(d => `<a class="crow" href="#d-${esc(d.id)}"><span class="cdot" style="background:var(--line)"></span><div><div class="t">${esc(d.title || "Date")}</div><div class="s">${esc(fmtShort(d.date))}</div></div><span class="ctag" style="color:var(--accent)">Bewerten</span></a>`).join("")}</div></section>` : ""}`;
 }
 
 /* ---------- memories ---------- */
@@ -846,7 +899,7 @@ function viewMemories() {
     const dt = parseDay(d.date);
     const thumbs = ph.filter(p => S.urls[p.path]).slice(0, 4).map(p => `<img src="${esc(S.urls[p.path])}" alt="" loading="lazy">`).join("");
     return `<a class="mem" href="#d-${esc(d.id)}"><div class="item" style="border:0;padding:0;background:none"><div class="cal"><b>${dt.getDate()}</b><span>${dt.toLocaleDateString("de-DE", { month: "short" }).replace(".", "")}</span></div>
-      <div><div class="t">${esc(d.title || "Date")}</div><div class="s">${esc(dt.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" }))}${d.city ? " · " + esc(d.city) : ""}</div></div>
+      <div><div class="t">${esc(d.title || "Date")}</div><div class="s">${esc(dt.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" }))}${d.city ? " · " + esc(d.city) : ""}</div>${ratingAvg(d, "gesamt") != null ? `<div class="mstar">${starBar(ratingAvg(d, "gesamt"))}<span>${fmtScore(ratingAvg(d, "gesamt"))}</span></div>` : ""}</div>
       <span class="chip open">${ph.length} ${ph.length === 1 ? "Foto" : "Fotos"}</span></div>
       ${thumbs ? `<div class="thumbs">${thumbs}</div>` : ""}${d.memo ? `<div class="memo">${esc(d.memo)}</div>` : ""}</a>`;
   }).join("")}</div>`;
@@ -1004,6 +1057,7 @@ function viewDate() {
   <section class="panel"><h2>${past ? "Erinnerungen" : "Fotos"}</h2>
     ${photos.length ? `<div class="photos">${photos.map(p => `<figure>${S.urls[p.path] ? `<img src="${esc(S.urls[p.path])}" alt="Foto vom Date" loading="lazy" data-act="zoom">` : ""}<button type="button" data-act="delphoto" data-id="${esc(p.id)}" aria-label="Foto löschen">×</button></figure>`).join("")}</div>` : `<p class="muted">${past ? "Hier kommen unsere Fotos von diesem Abend hin." : "Nach dem Date sammeln wir hier unsere Fotos."}</p>`}
     <label class="btn" for="upload">${I.plus} Fotos hinzufügen</label><input id="upload" type="file" accept="image/*" multiple hidden data-date="${esc(d.id)}">
+    ${ratingBlock(d)}
     <label class="f" for="memo-${esc(d.id)}" style="margin-top:14px">Notiz zum Abend
       <textarea id="memo-${esc(d.id)}" class="in" placeholder="Was war das Beste an dem Abend?" maxlength="2000">${esc(d.memo || "")}</textarea></label>
     <div class="row" style="margin-top:8px"><button class="btn small" type="button" data-act="savememo">Notiz speichern</button></div>
@@ -1068,19 +1122,39 @@ function readForm() {
 }
 
 /* ---------- ideas ---------- */
+function ideaState(i) {
+  if (i.done) return "done";
+  if (i.dateId) { const d = S.dates.find(x => x.id === i.dateId); if (!d) return "open"; return d.date < todayStr() ? "done" : "planned"; }
+  return i.approved ? "open" : "proposed";
+}
+function ideaPills() {
+  const open = S.ideas.filter(i => ideaState(i) === "open").length;
+  const waiting = S.ideas.filter(i => ideaState(i) === "proposed" && i.by !== S.me).length;
+  let h = "";
+  if (waiting) h += `<a class="ideapill new" href="#ideen">${I.bulb}<span><b>${waiting} ${waiting === 1 ? "neue Idee wartet" : "neue Ideen warten"}</b> auf deine Zustimmung</span>${I.right}</a>`;
+  if (open) h += `<a class="ideapill" href="#ideen">${I.bulb}<span><b>${open} ${open === 1 ? "Idee" : "Ideen"}</b> offen zum Planen · Jetzt planen</span>${I.right}</a>`;
+  return h ? `<div class="ideapills">${h}</div>` : "";
+}
 function viewIdeas() {
-  const open = S.ideas.filter(i => !i.done).sort((a, b) => (b.at || 0) - (a.at || 0));
-  const done = S.ideas.filter(i => i.done).sort((a, b) => (b.at || 0) - (a.at || 0));
-  const row = i => `<div class="idea ${i.done ? "done" : ""}"><input type="checkbox" id="ck-${esc(i.id)}" data-act="toggleidea" data-id="${esc(i.id)}" ${i.done ? "checked" : ""} aria-label="Erledigt">
-     <div><div class="tx">${esc(i.text)}</div><div class="tg">${esc(i.tag || "")} · von ${esc(personName(i.by))}</div></div>
-     <div class="row">${i.done ? "" : `<button class="btn small" type="button" data-act="planidea" data-id="${esc(i.id)}">Planen</button>`}<button class="iconbtn" type="button" data-act="delidea" data-id="${esc(i.id)}" aria-label="Idee löschen">${I.x}</button></div></div>`;
-  return `<p class="muted" style="margin-top:0">Hier sammeln wir, was wir mal zusammen machen wollen. Mit „Planen“ wird daraus ein Date.</p>
+  const by = st => S.ideas.filter(i => ideaState(i) === st);
+  const newest = (a, b) => (b.at || 0) - (a.at || 0);
+  const on = otherName();
+  const meta = i => `${esc(i.tag || "")} · von ${esc(i.by === S.me ? "dir" : personName(i.by))}`;
+  const del = i => `<button class="iconbtn" type="button" data-act="delidea" data-id="${esc(i.id)}" aria-label="Idee löschen">${I.x}</button>`;
+  const rowOpen = i => `<div class="idea"><span class="idot open"></span><div><div class="tx">${esc(i.text)}</div><div class="tg">${meta(i)}</div></div><div class="row"><button class="btn small primary" type="button" data-act="planidea" data-id="${esc(i.id)}">Planen</button>${del(i)}</div></div>`;
+  const rowProp = i => `<div class="idea"><span class="idot"></span><div><div class="tx">${esc(i.text)}</div><div class="tg">${meta(i)}${i.by === S.me ? ` · wartet auf ${esc(on)}` : ""}</div></div><div class="row">${i.by !== S.me ? `<button class="btn small primary" type="button" data-act="approveidea" data-id="${esc(i.id)}">Zustimmen</button>` : ""}${del(i)}</div></div>`;
+  const rowPlanned = i => { const d = S.dates.find(x => x.id === i.dateId); return `<a class="idea" href="#d-${esc(i.dateId)}"><span class="idot planned"></span><div><div class="tx">${esc(i.text)}</div><div class="tg">Geplant für ${esc(d ? fmtShort(d.date) : "")}</div></div><span class="ctag" style="color:var(--accent)">Ansehen</span></a>`; };
+  const rowDone = i => `<div class="idea done">${i.done ? `<input type="checkbox" id="ck-${esc(i.id)}" data-act="toggleidea" data-id="${esc(i.id)}" checked aria-label="Wieder öffnen">` : '<span class="idot planned"></span>'}<div><div class="tx">${esc(i.text)}</div><div class="tg">${meta(i)}</div></div>${del(i)}</div>`;
+  const open = by("open").sort(newest), prop = by("proposed").sort(newest), planned = by("planned").sort(newest), done = by("done").sort(newest);
+  return `<p class="muted" style="margin-top:0">Neue Ideen landen erst bei „Vorgeschlagen“. Sobald die andere Person zustimmt, sind sie offen zum Planen, und wer Lust hat, macht daraus ein Date.</p>
    <form id="ideaform" class="panel" style="margin-top:0;display:grid;gap:10px">
      <label class="f" for="idea-text">Neue Idee <input id="idea-text" class="in" placeholder="z. B. Eislaufen gehen" maxlength="200"></label>
      <div class="row"><select id="idea-tag" class="in" style="flex:1;min-width:140px" aria-label="Kategorie">${IDEA_TAGS.map(t => `<option>${t}</option>`).join("")}</select><button class="btn primary" type="submit">Hinzufügen</button></div>
    </form>
-   <section class="section"><h2>Offen</h2><div class="list">${open.length ? open.map(row).join("") : '<p class="muted">Keine offenen Ideen.</p>'}</div></section>
-   ${done.length ? `<section class="section"><h2>Schon gemacht</h2><div class="list">${done.map(row).join("")}</div></section>` : ""}`;
+   <section class="section"><h2>Offen zum Planen</h2><div class="list">${open.length ? open.map(rowOpen).join("") : '<p class="muted">Noch nichts offen. Stimmt Ideen zu, dann landen sie hier.</p>'}</div></section>
+   <section class="section"><h2>Vorgeschlagen</h2><div class="list">${prop.length ? prop.map(rowProp).join("") : '<p class="muted">Keine neuen Vorschläge.</p>'}</div></section>
+   ${planned.length ? `<section class="section"><h2>Geplant</h2><div class="list">${planned.map(rowPlanned).join("")}</div></section>` : ""}
+   ${done.length ? `<section class="section"><h2>Schon gemacht</h2><div class="list">${done.map(rowDone).join("")}</div></section>` : ""}`;
 }
 
 /* ---------- setup sheet + dialogs ---------- */
@@ -1129,6 +1203,13 @@ document.addEventListener("click", async e => {
   const act = b.dataset.act, d = S.dates.find(x => x.id === S.route.id);
   if (act === "logout") { await sb.auth.signOut(); S.phase = "login"; S.loaded = false; location.hash = ""; render(true); }
   else if (act === "retry") boot();
+  else if (act === "rate" && d) {
+    const k = b.dataset.k, n = +b.dataset.n, r = JSON.parse(JSON.stringify(d.ratings || {})), mine = r[S.me] || {};
+    mine[k] = mine[k] === n ? 0 : n; r[S.me] = mine; d.ratings = r; render();
+    await saveDateData(d, { ratings: r });
+  }
+  else if (act === "ratecat") { S.rateCat = b.dataset.k; render(); }
+  else if (act === "effortdir") { S.effortDir = b.dataset.v; render(); }
   else if (act === "testpush") {
     b.disabled = true; S.testResult = { ok: true, text: "Wird gesendet …" }; render();
     try {
@@ -1219,7 +1300,15 @@ document.addEventListener("click", async e => {
   }
   else if (act === "toggleidea") { const i = S.ideas.find(x => x.id === b.dataset.id); if (i) await run(T("ideas").update({ done: !i.done }).eq("id", i.id)); }
   else if (act === "delidea") { const i = S.ideas.find(x => x.id === b.dataset.id); if (i && await confirmBox("Idee löschen?", "Löschen")) await run(T("ideas").delete().eq("id", i.id)); }
-  else if (act === "planidea") { const i = S.ideas.find(x => x.id === b.dataset.id); S.prefillTitle = i ? i.text : ""; location.hash = "neu"; }
+  else if (act === "approveidea") {
+    const i = S.ideas.find(x => x.id === b.dataset.id); if (!i) return;
+    b.disabled = true;
+    if (await run(T("ideas").update({ approved_by: S.me, approved_at: new Date().toISOString() }).eq("id", i.id))) {
+      i.approved = true; render(); toast("Zugestimmt! Die Idee ist jetzt offen zum Planen.");
+      notify(myName() + " hat deiner Idee zugestimmt", i.text + " · offen zum Planen", "#ideen");
+    } else b.disabled = false;
+  }
+  else if (act === "planidea") { const i = S.ideas.find(x => x.id === b.dataset.id); S.planIdeaId = i ? i.id : null; S.prefillTitle = i ? i.text : ""; location.hash = "neu"; }
 });
 
 document.addEventListener("change", async e => {
@@ -1277,11 +1366,12 @@ document.addEventListener("submit", async e => {
     if (city && lat == null) { const g = await geocode(city); if (g) { lat = g.lat; lng = g.lng; } }
     const data = { title: (d.title || "").trim(), date: d.date, city, lat, lng, forName: (d.forName || "").trim(), fromName: (d.fromName || "").trim(),
       stops: d.stops.map(s => ({ id: s.id || uid("s"), time: s.time, cat: s.cat, name: s.name.trim(), note: s.note.trim(), place: s.place.trim(), walk: (s.walk || "").trim() })),
-      rsvp: (orig && orig.rsvp) || { status: "open", by: "", at: 0, proposal: "" }, memo: (orig && orig.memo) || "" };
+      rsvp: (orig && orig.rsvp) || { status: "open", by: "", at: 0, proposal: "" }, memo: (orig && orig.memo) || "", ratings: (orig && orig.ratings) || {} };
     if (await run(T("dates").upsert({ id, data }))) {
       const what = (data.title ? data.title + " · " : "") + fmtLong(data.date);
       if (orig) notify(myName() + " hat ein Date geändert", what, "#d-" + id);
       else notify(myName() + " hat dich zu einem Date eingeladen", what, "#d-" + id);
+      if (!orig && S.planIdeaId) { const pid = S.planIdeaId; S.planIdeaId = null; await run(T("ideas").update({ date_id: id }).eq("id", pid)); }
       location.hash = "d-" + id;
     }
     else btn.disabled = false;
@@ -1308,7 +1398,7 @@ document.addEventListener("submit", async e => {
     btn.disabled = true; const t = todayStr();
     if (await run(T("answers").upsert({ id: t + "_" + S.me, qdate: t, body: v }))) {
       S.answers = S.answers.filter(a => !(a.date === t && a.by === S.me)).concat([{ id: t + "_" + S.me, date: t, by: S.me, text: v, at: Date.now() }]);
-      notify(myName() + " hat die Frage des Tages beantwortet", "Antworte auch, dann seht ihr beide Antworten.", "#", "qday"); render();
+      notify(myName() + " hat die Frage des Tages beantwortet", "Antworte auch, dann sehen wir beide Antworten.", "#", "qday"); render();
     } else btn.disabled = false;
   }
   if (f.id === "addqform") {
