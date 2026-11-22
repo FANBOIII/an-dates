@@ -473,13 +473,18 @@ body{min-height:100vh;min-height:100dvh}
 .idot.planned{background:#2F7A4F;border-color:#2F7A4F}
 a.idea{text-decoration:none;color:inherit}
 .idea .row{flex-wrap:nowrap;gap:8px}
+.idea .btn{white-space:nowrap}
+.idea{grid-template-columns:auto minmax(0,1fr) auto}
+.idea .tx{overflow-wrap:break-word;hyphens:auto}
+.idea:has(.btn){grid-template-columns:auto minmax(0,1fr)}
+.idea:has(.btn) .row{grid-column:2;justify-content:flex-start}
 </style>
 </head>
 <body>
 <div id="app" class="wrap"></div>
 <div id="layer"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=12"></script>
-<script src="app.js?v=12"></script>
+<script src="config.js?v=13"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>

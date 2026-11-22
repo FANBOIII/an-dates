@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_VERSION = 12;
+const APP_VERSION = 13;
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -1131,7 +1131,7 @@ function ideaPills() {
   const open = S.ideas.filter(i => ideaState(i) === "open").length;
   const waiting = S.ideas.filter(i => ideaState(i) === "proposed" && i.by !== S.me).length;
   let h = "";
-  if (waiting) h += `<a class="ideapill new" href="#ideen">${I.bulb}<span><b>${waiting} ${waiting === 1 ? "neue Idee wartet" : "neue Ideen warten"}</b> auf deine Zustimmung</span>${I.right}</a>`;
+  if (waiting) h += `<a class="ideapill new" href="#ideen">${I.bulb}<span><b>${waiting} ${waiting === 1 ? "neue Idee" : "neue Ideen"}</b> · Wärst du dabei?</span>${I.right}</a>`;
   if (open) h += `<a class="ideapill" href="#ideen">${I.bulb}<span><b>${open} ${open === 1 ? "Idee" : "Ideen"}</b> offen zum Planen · Jetzt planen</span>${I.right}</a>`;
   return h ? `<div class="ideapills">${h}</div>` : "";
 }
@@ -1141,18 +1141,18 @@ function viewIdeas() {
   const on = otherName();
   const meta = i => `${esc(i.tag || "")} · von ${esc(i.by === S.me ? "dir" : personName(i.by))}`;
   const del = i => `<button class="iconbtn" type="button" data-act="delidea" data-id="${esc(i.id)}" aria-label="Idee löschen">${I.x}</button>`;
-  const rowOpen = i => `<div class="idea"><span class="idot open"></span><div><div class="tx">${esc(i.text)}</div><div class="tg">${meta(i)}</div></div><div class="row"><button class="btn small primary" type="button" data-act="planidea" data-id="${esc(i.id)}">Planen</button>${del(i)}</div></div>`;
-  const rowProp = i => `<div class="idea"><span class="idot"></span><div><div class="tx">${esc(i.text)}</div><div class="tg">${meta(i)}${i.by === S.me ? ` · wartet auf ${esc(on)}` : ""}</div></div><div class="row">${i.by !== S.me ? `<button class="btn small primary" type="button" data-act="approveidea" data-id="${esc(i.id)}">Zustimmen</button>` : ""}${del(i)}</div></div>`;
+  const rowOpen = i => `<div class="idea"><span class="idot open"></span><div><div class="tx">${esc(i.text)}</div><div class="tg">${meta(i)}${i.approvedBy ? ` · ${esc(i.approvedBy === S.me ? "du wärst" : personName(i.approvedBy) + " wär")} dabei` : ""}</div></div><div class="row"><button class="btn small primary" type="button" data-act="planidea" data-id="${esc(i.id)}">Planen</button>${del(i)}</div></div>`;
+  const rowProp = i => `<div class="idea"><span class="idot"></span><div><div class="tx">${esc(i.text)}</div><div class="tg">${meta(i)}${i.by === S.me ? ` · wartet, ob ${esc(on)} dabei wär` : ""}</div></div><div class="row">${i.by !== S.me ? `<button class="btn small primary" type="button" data-act="approveidea" data-id="${esc(i.id)}">Wär ich dabei!</button>` : ""}${del(i)}</div></div>`;
   const rowPlanned = i => { const d = S.dates.find(x => x.id === i.dateId); return `<a class="idea" href="#d-${esc(i.dateId)}"><span class="idot planned"></span><div><div class="tx">${esc(i.text)}</div><div class="tg">Geplant für ${esc(d ? fmtShort(d.date) : "")}</div></div><span class="ctag" style="color:var(--accent)">Ansehen</span></a>`; };
   const rowDone = i => `<div class="idea done">${i.done ? `<input type="checkbox" id="ck-${esc(i.id)}" data-act="toggleidea" data-id="${esc(i.id)}" checked aria-label="Wieder öffnen">` : '<span class="idot planned"></span>'}<div><div class="tx">${esc(i.text)}</div><div class="tg">${meta(i)}</div></div>${del(i)}</div>`;
   const open = by("open").sort(newest), prop = by("proposed").sort(newest), planned = by("planned").sort(newest), done = by("done").sort(newest);
-  return `<p class="muted" style="margin-top:0">Neue Ideen landen erst bei „Vorgeschlagen“. Sobald die andere Person zustimmt, sind sie offen zum Planen, und wer Lust hat, macht daraus ein Date.</p>
+  return `<p class="muted" style="margin-top:0">Neue Ideen landen erst bei „Neue Ideen“. Sobald die andere Person auf „Wär ich dabei!“ tippt, sind sie offen zum Planen, und wer Lust hat, macht daraus ein Date.</p>
    <form id="ideaform" class="panel" style="margin-top:0;display:grid;gap:10px">
      <label class="f" for="idea-text">Neue Idee <input id="idea-text" class="in" placeholder="z. B. Eislaufen gehen" maxlength="200"></label>
      <div class="row"><select id="idea-tag" class="in" style="flex:1;min-width:140px" aria-label="Kategorie">${IDEA_TAGS.map(t => `<option>${t}</option>`).join("")}</select><button class="btn primary" type="submit">Hinzufügen</button></div>
    </form>
-   <section class="section"><h2>Offen zum Planen</h2><div class="list">${open.length ? open.map(rowOpen).join("") : '<p class="muted">Noch nichts offen. Stimmt Ideen zu, dann landen sie hier.</p>'}</div></section>
-   <section class="section"><h2>Vorgeschlagen</h2><div class="list">${prop.length ? prop.map(rowProp).join("") : '<p class="muted">Keine neuen Vorschläge.</p>'}</div></section>
+   <section class="section"><h2>Offen zum Planen</h2><div class="list">${open.length ? open.map(rowOpen).join("") : '<p class="muted">Noch nichts offen. Sobald jemand bei einer Idee dabei wär, landet sie hier.</p>'}</div></section>
+   <section class="section"><h2>Neue Ideen</h2><div class="list">${prop.length ? prop.map(rowProp).join("") : '<p class="muted">Keine neuen Ideen.</p>'}</div></section>
    ${planned.length ? `<section class="section"><h2>Geplant</h2><div class="list">${planned.map(rowPlanned).join("")}</div></section>` : ""}
    ${done.length ? `<section class="section"><h2>Schon gemacht</h2><div class="list">${done.map(rowDone).join("")}</div></section>` : ""}`;
 }
@@ -1304,8 +1304,8 @@ document.addEventListener("click", async e => {
     const i = S.ideas.find(x => x.id === b.dataset.id); if (!i) return;
     b.disabled = true;
     if (await run(T("ideas").update({ approved_by: S.me, approved_at: new Date().toISOString() }).eq("id", i.id))) {
-      i.approved = true; render(); toast("Zugestimmt! Die Idee ist jetzt offen zum Planen.");
-      notify(myName() + " hat deiner Idee zugestimmt", i.text + " · offen zum Planen", "#ideen");
+      i.approved = true; i.approvedBy = S.me; render(); toast("Super! Die Idee ist jetzt offen zum Planen.");
+      notify(myName() + " wär dabei!", i.text + " · Jetzt planen?", "#ideen");
     } else b.disabled = false;
   }
   else if (act === "planidea") { const i = S.ideas.find(x => x.id === b.dataset.id); S.planIdeaId = i ? i.id : null; S.prefillTitle = i ? i.text : ""; location.hash = "neu"; }
