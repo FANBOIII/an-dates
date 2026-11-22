@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_VERSION = 16;
+const APP_VERSION = 17;
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -571,6 +571,8 @@ function render(force) {
   if (!force) document.querySelectorAll("#app input[id], #app textarea[id]").forEach(el => { if (el.type !== "file" && el.type !== "checkbox") keep[el.id] = el.value; });
   const v = S.route.name;
   S.theme = applyTheme(v === "home");
+  const rk = v + "|" + (S.route.id || "");
+  app.classList.toggle("noanim", S.lastRk === rk); S.lastRk = rk;
   app.innerHTML = header() + (v === "date" ? viewDate() : v === "edit" ? viewEdit() : v === "ideas" ? viewIdeas() : v === "memories" ? viewMemories() : v === "map" ? viewMap() : v === "recap" ? viewRecap() : v === "ratings" ? viewRatings() : v === "questions" ? viewQuestions() : v === "settings" ? viewSettings() : v === "calendar" ? viewCalendar() : v === "event" ? viewEvent() : v === "eventedit" ? viewEventEdit() : viewHome());
   Object.entries(keep).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
   if (aid) { const el = document.getElementById(aid); if (el) { el.focus(); try { if (sel != null) el.setSelectionRange(sel, sel); } catch (e) {} } }
