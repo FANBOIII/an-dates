@@ -478,13 +478,70 @@ a.idea{text-decoration:none;color:inherit}
 .idea .tx{overflow-wrap:break-word;hyphens:auto}
 .idea:has(.btn){grid-template-columns:auto minmax(0,1fr)}
 .idea:has(.btn) .row{grid-column:2;justify-content:flex-start}
+
+/* v14 hologram */
+.holo{position:fixed;inset:0;z-index:90;background:radial-gradient(ellipse at 50% 70%,rgba(30,10,40,.82),rgba(6,4,12,.94));display:flex;align-items:center;justify-content:center;overflow:hidden;animation:hin .8s ease-out both;cursor:pointer;perspective:700px}
+.holo.out{animation:hout .6s ease-in forwards}
+@keyframes hin{from{opacity:0;filter:blur(8px)}to{opacity:1;filter:none}}
+@keyframes hout{to{opacity:0;transform:scale(1.04);filter:blur(6px)}}
+.hbase{position:absolute;bottom:9%;left:50%;width:220px;height:34px;margin-left:-110px;border-radius:50%;background:radial-gradient(ellipse,rgba(120,240,255,.9),rgba(255,120,200,.35) 55%,transparent 72%);filter:blur(2px);animation:pulse 2.4s ease-in-out infinite}
+.hbeam{position:absolute;bottom:11%;left:50%;width:360px;height:78%;margin-left:-180px;background:linear-gradient(to top,rgba(130,240,255,.28),rgba(255,140,210,.12) 55%,transparent);clip-path:polygon(38% 100%,62% 100%,100% 0,0 0);animation:pulse 3s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.6}}
+.hfield{position:absolute;inset:0;transform-style:preserve-3d}
+.hflower{position:absolute;bottom:-80px;animation:rise linear infinite;filter:drop-shadow(0 0 6px rgba(120,240,255,.8)) drop-shadow(0 0 14px rgba(255,110,190,.6));opacity:.88;mix-blend-mode:screen}
+.hflower svg,.hcenter svg{width:100%;height:100%;animation:holohue 4s linear infinite,spin3d 7s ease-in-out infinite}
+@keyframes rise{0%{transform:translateY(0) scale(.7);opacity:0}12%{opacity:.9}85%{opacity:.85}100%{transform:translateY(-105vh) scale(1.05);opacity:0}}
+@keyframes spin3d{0%,100%{transform:rotateY(-25deg) rotateZ(-8deg)}50%{transform:rotateY(25deg) rotateZ(10deg)}}
+@keyframes holohue{0%{filter:hue-rotate(0deg) saturate(1.2)}50%{filter:hue-rotate(-35deg) saturate(1.6) brightness(1.15)}100%{filter:hue-rotate(0deg) saturate(1.2)}}
+.hcenter{position:absolute;left:50%;top:38%;width:190px;height:190px;margin:-95px 0 0 -95px;filter:drop-shadow(0 0 10px rgba(120,240,255,.9)) drop-shadow(0 0 30px rgba(255,110,190,.7));mix-blend-mode:screen;animation:flick 3.2s steps(1) infinite,float 4s ease-in-out infinite}
+@keyframes float{50%{margin-top:-105px}}
+@keyframes flick{0%,100%{opacity:.95}47%{opacity:.95}48%{opacity:.55}49%{opacity:.95}72%{opacity:.8}73%{opacity:.95}}
+.hscan{position:absolute;inset:0;background:repeating-linear-gradient(to bottom,rgba(140,240,255,.07) 0 2px,transparent 2px 5px);pointer-events:none;animation:scan 6s linear infinite}
+@keyframes scan{to{background-position:0 120px}}
+.htext{position:absolute;left:16px;right:16px;top:58%;text-align:center;color:#EAFBFF;text-shadow:0 0 10px rgba(120,240,255,.9),0 0 24px rgba(255,110,190,.6)}
+.htext .eyebrow{color:#9FF3FF;letter-spacing:.28em}
+.hmsg{font-family:var(--script);font-size:40px;line-height:1.1;margin-top:8px}
+.hhint{font-size:13px;opacity:.65;margin-top:18px}
+@media (prefers-reduced-motion:reduce){.hflower,.hcenter,.hflower svg,.hcenter svg,.hscan,.hbase,.hbeam{animation:none}}
+
+/* v15 celebrations */
+.cel{position:fixed;inset:0;z-index:91;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;animation:hin .8s ease-out both;color:#FFF8EE;text-align:center}
+.cel.out{animation:hout .6s ease-in forwards}
+.cel.jahrestag{background:radial-gradient(ellipse at 50% 40%,#5A1631 0%,#2A0A1A 60%,#12040B 100%)}
+.cel.weihnachten{background:radial-gradient(ellipse at 50% 30%,#163257 0%,#0A1730 60%,#050B18 100%)}
+.cfx{position:absolute;inset:0;pointer-events:none}
+.cbody{position:relative;padding:0 26px;max-width:440px}
+.ctitle{font-family:var(--serif,Georgia,serif);font-size:30px;line-height:1.15;font-weight:700;margin-top:16px;text-shadow:0 2px 14px rgba(0,0,0,.5)}
+.jahrestag .ctitle{color:#FFE7A8}
+.weihnachten .ctitle{color:#FFE082;font-size:38px}
+.cmsg{font-family:var(--script);font-size:27px;line-height:1.25;margin-top:14px;text-shadow:0 2px 10px rgba(0,0,0,.5)}
+.cmsg.big{font-size:38px}
+.cel .hhint{font-size:13px;opacity:.6;margin-top:22px}
+.cbig{width:130px;height:130px;margin:0 auto;position:relative;animation:beat 1.4s ease-in-out infinite}
+.cbig::before{content:"\2764";position:absolute;inset:0;font-size:130px;line-height:130px;color:#E0245E;text-shadow:0 0 30px rgba(255,110,160,.8)}
+.cbig span{position:relative;font-family:var(--serif,Georgia,serif);font-size:54px;font-weight:700;line-height:122px;color:#FFE7A8}
+@keyframes beat{0%,100%{transform:scale(1)}15%{transform:scale(1.12)}30%{transform:scale(1)}45%{transform:scale(1.08)}}
+.burst{position:absolute;width:0;height:0;animation:bst 3.3s ease-out infinite}
+.burst i{position:absolute;left:-2px;top:-2px;width:4px;height:4px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c);transform:rotate(var(--r)) translateY(0);animation:spark 3.3s ease-out infinite;animation-delay:inherit}
+@keyframes spark{0%{transform:rotate(var(--r)) translateY(0);opacity:0}8%{opacity:1}40%{transform:rotate(var(--r)) translateY(-70px);opacity:1}70%,100%{transform:rotate(var(--r)) translateY(-84px);opacity:0}}
+@keyframes bst{0%,100%{opacity:1}}
+.cheart{position:absolute;bottom:-40px;color:#FF6F9C;opacity:.8;animation:rise linear infinite;text-shadow:0 0 10px rgba(255,110,160,.7)}
+.ctree{width:170px;height:204px;margin:0 auto;filter:drop-shadow(0 0 18px rgba(255,213,79,.35))}
+.ctree svg{width:100%;height:100%}
+.tl{animation:twk 1.6s ease-in-out infinite}
+@keyframes twk{50%{opacity:.25}}
+.tstar{transform-origin:50px 14px;animation:star 2.4s ease-in-out infinite;filter:drop-shadow(0 0 4px #FFE082)}
+@keyframes star{50%{transform:scale(1.18)}}
+.csnow{position:absolute;top:-10px;border-radius:50%;background:#fff;opacity:.85;animation:snowf linear infinite}
+@keyframes snowf{to{transform:translate(30px,105vh)}}
+@media (prefers-reduced-motion:reduce){.cel *{animation:none!important}}
 </style>
 </head>
 <body>
 <div id="app" class="wrap"></div>
 <div id="layer"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=13"></script>
-<script src="app.js?v=13"></script>
+<script src="config.js?v=15"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>

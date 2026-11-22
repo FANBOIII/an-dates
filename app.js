@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_VERSION = 13;
+const APP_VERSION = 15;
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -508,7 +508,7 @@ async function loadAll() {
     const bad = [d, c, p, i, pe].find(r => r.error);
     if (bad) throw bad.error;
     const rows = d.data.map(r => ({ ...(r.data || {}), id: r.id, createdBy: r.created_by }));
-    S.dates = rows.filter(x => x.kind !== "event"); S.events = rows.filter(x => x.kind === "event");
+    S.dates = rows.filter(x => !x.kind || x.kind === "date"); S.events = rows.filter(x => x.kind === "event"); S.surprises = rows.filter(x => x.kind === "surprise");
     S.comments = c.data.map(r => ({ id: r.id, dateId: r.date_id, by: r.author, text: r.body, at: Date.parse(r.created_at) }));
     S.photos = p.data.map(r => ({ id: r.id, dateId: r.date_id, path: r.path, by: r.author, at: Date.parse(r.created_at) }));
     S.ideas = i.data.map(r => ({ id: r.id, text: r.body, tag: r.tag, done: r.done, by: r.author, at: Date.parse(r.created_at), approvedBy: r.approved_by || null, approved: !!r.approved_at, dateId: r.date_id || null }));
@@ -520,6 +520,7 @@ async function loadAll() {
       (data || []).forEach(x => { if (x.signedUrl && x.path) S.urls[x.path] = x.signedUrl; });
     }
     try { await loadExtras(); } catch (e) { console.error(e); }
+    checkSurprise();
     if (S.route.name === "edit" && S.draftMissing) startDraft(S.route.id), render(true);
     if (S.route.name === "eventedit" && S.draftMissing) startEventDraft(S.route.id), render(true);
   } catch (e) { console.error(e); S.slow = true; }
@@ -746,6 +747,7 @@ function viewSettings() {
     ${S.testResult ? `<div class="testres ${S.testResult.ok ? "ok" : "bad"}">${esc(S.testResult.text)}</div>` : ""}
     ${S.extrasOk ? PREF_ROWS.map(([k, t, s]) => `<button class="toggle" type="button" data-act="pref" data-k="${k}" aria-pressed="${prefOn(k)}"><span><span class="t">${t}</span><span class="s">${s}</span></span><span class="sw${prefOn(k) ? " on" : ""}"></span></button>`).join("") : '<p class="hint">Die Einstellungen erscheinen, sobald features.sql in Supabase ausgeführt ist.</p>'}
     <p class="hint" style="margin:10px 0 0">Jeder von uns stellt das für sich selbst ein.</p></section>
+  ${surprisePanel()}
   <section class="panel"><h2 style="font-size:19px">Profil</h2><p style="margin:0 0 10px">Angemeldet als <b>${esc(meName || S.email)}</b></p>
     <div class="row"><button class="btn small" type="button" data-act="setup">Name ändern</button><button class="btn small danger ghost" type="button" data-act="logout">Abmelden</button></div></section>`;
 }
@@ -1203,6 +1205,16 @@ document.addEventListener("click", async e => {
   const act = b.dataset.act, d = S.dates.find(x => x.id === S.route.id);
   if (act === "logout") { await sb.auth.signOut(); S.phase = "login"; S.loaded = false; location.hash = ""; render(true); }
   else if (act === "retry") boot();
+  else if (act === "celprev") { showCelebration(b.dataset.kind); }
+  else if (act === "previewsurprise") { showHologram(($("#sp-text") || {}).value || "", myName()); }
+  else if (act === "sendsurprise") {
+    const other = otherPerson(); if (!other) return;
+    const text = (($("#sp-text") || {}).value || "").trim();
+    b.disabled = true;
+    const data = { kind: "surprise", type: "hibiskus", to: other, from: S.me, text, seen: false, at: Date.now() };
+    if (await run(T("dates").insert({ id: uid("x"), data }))) { const inp = $("#sp-text"); if (inp) inp.value = ""; toast("Abgeschickt! " + personName(other) + " sieht es beim nächsten Öffnen."); }
+    b.disabled = false;
+  }
   else if (act === "rate" && d) {
     const k = b.dataset.k, n = +b.dataset.n, r = JSON.parse(JSON.stringify(d.ratings || {})), mine = r[S.me] || {};
     mine[k] = mine[k] === n ? 0 : n; r[S.me] = mine; d.ratings = r; render();
@@ -1467,6 +1479,115 @@ function heartBurst(btn) {
   btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop");
 }
 
+/* ---------- surprise: hibiscus hologram ---------- */
+function hibiscus(n, c1, c2) {
+  const petals = [0, 72, 144, 216, 288].map(r => `<path transform="rotate(${r} 50 50)" d="M50 50 C36 40 26 18 36 8 C42 2 46 8 50 4 C54 8 58 2 64 8 C74 18 64 40 50 50Z" fill="url(#hp${n})" stroke="${c2}" stroke-width=".8"/>`).join("");
+  return `<svg viewBox="0 0 100 100" aria-hidden="true"><defs><radialGradient id="hp${n}" cx="50%" cy="85%" r="90%"><stop offset="0" stop-color="#7A0A2A"/><stop offset=".35" stop-color="${c2}"/><stop offset="1" stop-color="${c1}"/></radialGradient></defs>
+    ${petals}<circle cx="50" cy="50" r="7" fill="#7A0A2A"/><path d="M50 50 C52 40 58 32 62 24" stroke="#F6C9D6" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    ${[[62, 24], [65, 21], [60, 20], [66, 26], [63, 18]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.8" fill="#FFD54F"/>`).join("")}</svg>`;
+}
+function showHologram(text, fromName, onClose) {
+  if ($("#holo")) return;
+  const cols = [["#FF6FA3", "#E0245E"], ["#FF9EC4", "#D81B60"], ["#FFB199", "#F0465E"], ["#F48FB1", "#C2185B"]];
+  let flowers = "";
+  for (let i = 0; i < 9; i++) {
+    const [a, b] = cols[i % cols.length], size = 46 + (i * 37) % 50, left = 8 + (i * 29) % 84, delay = (i * 0.45).toFixed(2), dur = (6 + (i * 13) % 5).toFixed(1);
+    flowers += `<div class="hflower" style="left:${left}%;width:${size}px;height:${size}px;animation-delay:-${delay}s;animation-duration:${dur}s">${hibiscus(i, a, b)}</div>`;
+  }
+  const el = document.createElement("div");
+  el.id = "holo"; el.className = "holo"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Überraschung");
+  el.innerHTML = `<div class="hbeam"></div><div class="hbase"></div><div class="hfield">${flowers}
+      <div class="hcenter">${hibiscus(99, "#FF7AAE", "#E0245E")}</div></div>
+    <div class="hscan"></div>
+    <div class="htext">${text ? `<div class="hmsg">${esc(text)}</div>` : `<div class="hmsg">Für dich</div>`}<div class="hhint">Antippen zum Schließen</div></div>`;
+  document.body.appendChild(el);
+  const close = () => { el.classList.add("out"); setTimeout(() => el.remove(), 600); if (onClose) onClose(); };
+  el.addEventListener("click", close);
+}
+function checkSurprise() {
+  if (S.surpriseShown || !S.me || S.phase !== "app") return;
+  if ($("#cel")) { S.afterCel = checkSurprise; return; }
+  const sp = (S.surprises || []).filter(x => x.to === S.me && !x.seen).sort((a, b) => (a.at || 0) - (b.at || 0))[0];
+  if (!sp) return;
+  S.surpriseShown = true;
+  setTimeout(() => {
+    showHologram(sp.text, personName(sp.from));
+    const data = { ...sp, seen: true, seenAt: Date.now() }; delete data.id; delete data.createdBy;
+    run(T("dates").update({ data }).eq("id", sp.id));
+  }, 700);
+}
+function surprisePanel() {
+  const other = otherPerson(); if (!other) return "";
+  const last = (S.surprises || []).filter(x => x.from === S.me).sort((a, b) => (b.at || 0) - (a.at || 0))[0];
+  const status = last ? (last.seen ? `Zuletzt geschickt am ${new Date(last.at).toLocaleDateString("de-DE")} · gesehen ${relTime(last.seenAt)}` : `Geschickt am ${new Date(last.at).toLocaleDateString("de-DE")} · wartet, bis ${esc(personName(other))} die App öffnet`) : "";
+  return `<section class="panel"><h2 style="font-size:19px">Überraschung für ${esc(personName(other))}</h2>
+    <p class="muted" style="margin:0 0 10px">Ein Hologramm mit Hibiskusblüten, das beim nächsten Öffnen der App einmal erscheint.</p>
+    <label class="f" for="sp-text">Nachricht <span class="hint">optional</span><input id="sp-text" class="in" maxlength="80" placeholder="z. B. Ich vermisse dich"></label>
+    <div class="row" style="margin-top:10px"><button class="btn primary small" type="button" data-act="sendsurprise">Hologramm schicken</button><button class="btn small" type="button" data-act="previewsurprise">Vorschau</button></div>
+    ${status ? `<p class="hint" style="margin:10px 0 0">${status}</p>` : ""}</section>
+    <section class="panel"><h2 style="font-size:19px">Besondere Tage</h2>
+    <p class="muted" style="margin:0 0 10px">Erscheint automatisch beim ersten Öffnen am Jahrestag (30.12.) und an Weihnachten (24.–26.12.).</p>
+    <div class="row"><button class="btn small" type="button" data-act="celprev" data-kind="jahrestag">Vorschau Jahrestag</button><button class="btn small" type="button" data-act="celprev" data-kind="weihnachten">Vorschau Weihnachten</button></div></section>`;
+}
+
+
+/* ---------- celebrations: Jahrestag + Weihnachten ---------- */
+const ORD = ["", "ersten", "zweiten", "dritten", "vierten", "fünften", "sechsten", "siebten", "achten", "neunten", "zehnten"];
+function celKindToday() {
+  const t = todayStr(), md = t.slice(5);
+  if (md === TOGETHER_SINCE.slice(5) && t > TOGETHER_SINCE) return "jahrestag";
+  if (md === "12-24" || md === "12-25" || md === "12-26") return "weihnachten";
+  return "";
+}
+function celTree() {
+  const lights = [[50,30],[42,44],[58,46],[36,60],[52,62],[64,58],[30,76],[46,78],[60,80],[70,74],[40,92],[56,94],[26,92],[74,92]];
+  const cols = ["#FFD54F", "#FF5252", "#80D8FF", "#FFFFFF", "#FF80AB"];
+  return `<svg viewBox="0 0 100 120" aria-hidden="true"><defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2E7D4F"/><stop offset="1" stop-color="#0F3D26"/></linearGradient></defs>
+    <rect x="45" y="100" width="10" height="14" rx="2" fill="#6D4C2F"/>
+    <path d="M50 14 L70 44 L62 44 L78 68 L68 68 L86 100 L14 100 L32 68 L22 68 L38 44 L30 44 Z" fill="url(#tg)"/>
+    <path d="M36 52 Q50 60 64 50 M28 76 Q50 88 72 74" stroke="#FFD54F" stroke-width="1.4" fill="none" opacity=".8"/>
+    ${lights.map(([x, y], i) => `<circle class="tl" cx="${x}" cy="${y}" r="2.6" fill="${cols[i % cols.length]}" style="animation-delay:${(i * 0.37 % 2).toFixed(2)}s"/>`).join("")}
+    <path class="tstar" d="M50 2 L53.5 10.5 L62 11 L55.5 16.5 L57.5 25 L50 20.5 L42.5 25 L44.5 16.5 L38 11 L46.5 10.5 Z" fill="#FFE082"/></svg>`;
+}
+function showCelebration(kind, onClose) {
+  if ($("#cel")) return;
+  const el = document.createElement("div");
+  el.id = "cel"; el.className = "cel " + kind; el.setAttribute("role", "dialog");
+  let fx = "", body = "";
+  if (kind === "jahrestag") {
+    const n = new Date().getFullYear() - parseInt(TOGETHER_SINCE.slice(0, 4), 10) || 1;
+    const ord = ORD[n] || n + ".";
+    for (let i = 0; i < 6; i++) {
+      let sp = ""; for (let k = 0; k < 14; k++) sp += `<i style="--r:${k * 360 / 14}deg"></i>`;
+      fx += `<div class="burst" style="left:${12 + (i * 31) % 76}%;top:${8 + (i * 17) % 34}%;animation-delay:${(i * 0.55).toFixed(2)}s;--c:${["#FFD54F", "#FF80AB", "#FFFFFF", "#FFB74D"][i % 4]}">${sp}</div>`;
+    }
+    for (let i = 0; i < 16; i++) fx += `<div class="cheart" style="left:${(i * 23) % 96}%;font-size:${14 + (i * 7) % 20}px;animation-delay:-${(i * 0.6).toFixed(1)}s;animation-duration:${(6 + (i * 5) % 5)}s">&#10084;</div>`;
+    body = `<div class="cbig"><span>${n}</span></div>
+      <div class="ctitle">Alles Gute zu unserem ${ord} Jahrestag</div>
+      <div class="cmsg">Danke, dass ich so eine tolle Zeit mit dem einfühlsamsten, schlausten, wunderschönsten Menschen verbringen durfte! Ich kann es kaum abwarten, mein ganzes Leben mit dir zu verbringen.</div>`;
+  } else {
+    for (let i = 0; i < 46; i++) fx += `<div class="csnow" style="left:${(i * 37) % 100}%;width:${3 + i % 5}px;height:${3 + i % 5}px;animation-delay:-${(i * 0.41 % 9).toFixed(2)}s;animation-duration:${(7 + i % 6)}s"></div>`;
+    body = `<div class="ctree">${celTree()}</div>
+      <div class="ctitle">Frohe Weihnachten!</div>
+      <div class="cmsg big">Ich liebe dich über alles</div>`;
+  }
+  el.innerHTML = `<div class="cfx">${fx}</div><div class="cbody">${body}<div class="hhint">Antippen zum Schließen</div></div>`;
+  document.body.appendChild(el);
+  const close = () => {
+    el.classList.add("out");
+    setTimeout(() => { el.remove(); if (S.afterCel) { const f = S.afterCel; S.afterCel = null; f(); } }, 600);
+    if (onClose) onClose();
+  };
+  el.addEventListener("click", close);
+}
+function checkCelebration() {
+  if (S.celChecked) return; S.celChecked = true;
+  const kind = celKindToday(); if (!kind) return;
+  const key = "an-cel-" + todayStr();
+  try { if (localStorage.getItem(key)) return; } catch (e) {}
+  setTimeout(() => { showCelebration(kind); try { localStorage.setItem(key, "1"); } catch (e) {} }, 500);
+}
+
 /* ---------- auto update ---------- */
 async function checkUpdate() {
   try {
@@ -1492,6 +1613,7 @@ async function afterLogin(session) {
   if (!data) { S.phase = "notmember"; render(true); return; }
   S.phase = "app"; S.route = readRoute(); if (S.route.name === "edit") startDraft(S.route.id);
   render(true);
+  checkCelebration();
   if (!subscribed) {
     subscribed = true; subscribe();
     loadHomeWeather(); setInterval(loadHomeWeather, 30 * 60000);
