@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_VERSION = 17;
+const APP_VERSION = 18;
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -1548,7 +1548,7 @@ function celTree() {
     <rect x="45" y="100" width="10" height="14" rx="2" fill="#6D4C2F"/>
     <path d="M50 14 L70 44 L62 44 L78 68 L68 68 L86 100 L14 100 L32 68 L22 68 L38 44 L30 44 Z" fill="url(#tg)"/>
     <path d="M36 52 Q50 60 64 50 M28 76 Q50 88 72 74" stroke="#FFD54F" stroke-width="1.4" fill="none" opacity=".8"/>
-    ${lights.map(([x, y], i) => `<circle class="tl" cx="${x}" cy="${y}" r="2.6" fill="${cols[i % cols.length]}" style="animation-delay:${(i * 0.37 % 2).toFixed(2)}s"/>`).join("")}
+    ${lights.map(([x, y], i) => `<circle class="tlite" cx="${x}" cy="${y}" r="2.6" fill="${cols[i % cols.length]}" style="animation-delay:${(i * 0.37 % 2).toFixed(2)}s"/>`).join("")}
     <path class="tstar" d="M50 2 L53.5 10.5 L62 11 L55.5 16.5 L57.5 25 L50 20.5 L42.5 25 L44.5 16.5 L38 11 L46.5 10.5 Z" fill="#FFE082"/></svg>`;
 }
 function showCelebration(kind, onClose) {
