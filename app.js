@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_VERSION = 15;
+const APP_VERSION = 16;
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
